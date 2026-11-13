@@ -1,1 +1,7 @@
 # wind-bolt-demo
+
+Blade bolt inspection viewer: demo layout with sample data.
+
+Farm map → tower → blades → 96-bolt pass/fail circle per blade.
+
+Live: https://nate824.github.io/wind-bolt-demo/
