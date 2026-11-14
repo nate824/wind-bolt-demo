@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stud Tracker</title>
+<meta name="theme-color" content="#16212e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  /* Layout: tower list on the left, one tower at a time on the right: axis tabs, stud circle, detail panel. */
+  color-scheme: light;
+  --bg:#f2f4f7; --panel:#ffffff; --raised:#eceff3; --line:#d3dae2; --ink:#15202b; --muted:#5a6978;
+  --accent:#1766d1; --ring:#dfe4ea; --stud:#ffffff; --stud-line:#6c7986;
+  --z-red:#d8352c; --z-green:#1c9a52; --z-blue:#1b8fd6; --z-yellow:#c79a00; --broken:#f08a00; --plate:#e668b3; --ref:#1b8fd6;
+  --a1:#6aa90a; --a2:#1b9bd8; --a3:#9a4ee0; --warn:#b86e00; --warn-bg:#fff3d6; --ok:#1c9a52;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  color-scheme: dark;
+  --bg:#0f1722; --panel:#16212e; --raised:#1e2c3c; --line:#2c3d51; --ink:#e9eff6; --muted:#93a5b8;
+  --accent:#5aa2ff; --ring:#243447; --stud:#e6edf5; --stud-line:#0f1722;
+  --z-red:#ff5a50; --z-green:#35d07f; --z-blue:#4db8f5; --z-yellow:#f2c230; --broken:#ffa726; --plate:#f088c6; --ref:#4db8f5;
+  --warn:#ffc04d; --warn-bg:#3a2c0c; --ok:#35d07f;
+}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.4;display:flex;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+h1,h2,h3{margin:0;font-weight:650}
+.num{font-variant-numeric:tabular-nums}
+
+/* sidebar */
+#side{width:300px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;transition:margin-left .25s ease;z-index:5}
+body.noside #side{margin-left:-300px}
+.side-head{padding:16px 16px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.brand{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.site{font-size:20px;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{background:var(--raised);border-radius:8px;padding:8px 10px;min-width:0}
+.tile b{display:block;font-size:20px;line-height:1.15;font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--muted)}
+.tile.wide{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tile.warn{background:var(--warn-bg);outline:1px solid var(--warn)}
+.tile.warn b,.tile.warn em{color:var(--warn)}
+.tile em{font-style:normal;font-size:12px;font-weight:650;text-align:right}
+.side-actions{display:flex;gap:6px;padding:10px 10px 4px}
+.side-actions .btn{padding:7px 8px}
+.side-actions .btn{flex:1}
+.tlist{list-style:none;margin:0;padding:6px 8px 16px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:2px}
+.trow{width:100%;display:flex;align-items:center;gap:9px;padding:8px 9px;background:none;border:1px solid transparent;border-radius:7px;text-align:left}
+.trow:hover{background:var(--raised)}
+.trow.on{background:var(--raised);border-color:var(--accent)}
+.trow .nm{flex:1;font-weight:550;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;border:1.5px dashed var(--muted)}
+.dot.s1{border:0;background:var(--accent)} .dot.s2{border:0;background:var(--ok)}
+.chip{font-size:11.5px;font-weight:650;border-radius:4px;padding:1px 6px;white-space:nowrap;border:1px solid var(--line);color:var(--muted);font-variant-numeric:tabular-nums}
+.chip.brk{color:var(--broken);border-color:var(--broken)}
+.chip.aln{color:var(--accent);border-color:var(--accent)}
+.empty{color:var(--muted);font-size:13.5px;padding:10px}
+
+/* main */
+#main{flex:1;min-width:0;display:flex;flex-direction:column}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar .grow{flex:1;min-width:0;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:7px 12px;font-weight:550;white-space:nowrap}
+.btn:hover{background:var(--raised)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){.btn.primary{color:#06121f}}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--z-red);border-color:var(--z-red)}
+.btn.icon{padding:7px 9px;display:grid;place-items:center}
+.btn:disabled{opacity:.5;cursor:default}
+.mode{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:5px;padding:4px 8px;background:var(--raised);color:var(--muted)}
+.mode.edit{color:var(--ok)}
+#saved{font-size:12.5px;color:var(--muted);opacity:0;transition:opacity .3s}
+#saved.show{opacity:1}
+#banner{background:var(--warn-bg);color:var(--warn);border-bottom:1px solid var(--warn);padding:8px 14px;font-size:14px;font-weight:550;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#content{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.thead{display:grid;grid-template-columns:minmax(140px,.8fr) minmax(160px,1.4fr) auto auto auto;gap:10px;align-items:center;padding:10px 12px}
+.thead textarea{height:40px;min-height:40px}
+input[type=text],input[type=number],input[type=password],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 10px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:38px;display:block}
+input:disabled,textarea:disabled,select:disabled{opacity:1;color:var(--ink);background:var(--raised);-webkit-text-fill-color:var(--ink)}
+.tname{font-size:20px;font-weight:700}
+label.fl{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--bg)}
+.seg button{background:none;border:0;padding:6px 11px;font-weight:550;border-right:1px solid var(--line);white-space:nowrap}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){.seg button.on{color:#06121f}}
+.seg button:disabled{cursor:default}
+.seg button:disabled:not(.on){color:var(--muted)}
+.pill{font-size:12.5px;font-weight:700;border-radius:99px;padding:3px 10px;background:var(--raised);color:var(--muted);white-space:nowrap}
+.pill.s1{color:var(--accent)} .pill.s2{color:var(--ok)}
+
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{flex:1;min-width:150px;display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 12px;text-align:left;border-top:4px solid var(--ac)}
+.tab.on{outline:2px solid var(--accent);outline-offset:-1px}
+.tab b{font-size:18px}
+.tab small{color:var(--muted);font-size:12.5px;flex:1}
+.work{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;align-items:start}
+.diawrap{padding:8px 8px 10px;display:flex;flex-direction:column;gap:6px}
+.diatools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:2px 6px}
+.key{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-left:auto}
+.key span{display:flex;align-items:center;gap:5px}
+.sw{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--stud-line);background:var(--stud);flex:none}
+.sw.red{background:var(--z-red);border-color:var(--z-red)} .sw.green{background:var(--z-green);border-color:var(--z-green)}
+.sw.blue{background:var(--z-blue);border-color:var(--z-blue)} .sw.yellow{background:var(--z-yellow);border-color:var(--z-yellow)}
+.sw.brk{background:var(--broken);border-color:var(--ink)}
+.sw.nt{width:7px;height:7px;background:var(--accent);border:0}
+#dia svg{display:block;width:100%;height:auto;max-height:max(440px,calc(100vh - 205px));margin:0 auto}
+.toggle.on{background:var(--broken);border-color:var(--broken);color:#1a1200}
+
+/* svg */
+.stud{cursor:pointer}
+.stud .d{fill:var(--stud);stroke:var(--stud-line);stroke-width:1.3}
+.stud.red .d{fill:var(--z-red)} .stud.green .d{fill:var(--z-green)} .stud.blue .d{fill:var(--z-blue)} .stud.yellow .d{fill:var(--z-yellow)}
+.stud.broken .d{fill:var(--broken);stroke:var(--ink);stroke-width:2}
+.stud .x{stroke:var(--ink);stroke-width:2.2;stroke-linecap:round}
+.stud .nb{fill:var(--accent)} .stud .ov{fill:var(--ink)}
+.stud .sel{fill:none;stroke:var(--accent);stroke-width:3}
+.stud .one{fill:none;stroke:var(--ref);stroke-width:2}
+.stud:hover .d{stroke:var(--accent);stroke-width:2.4}
+.lab rect{fill:var(--panel);stroke-width:2.5}
+.lab text{font:700 15px var(--font);text-anchor:middle;dominant-baseline:central}
+.tick{font:600 11px var(--font);fill:var(--muted);text-anchor:middle;dominant-baseline:central}
+.cnt{font:700 11px var(--font);fill:var(--ref);text-anchor:middle;dominant-baseline:central}
+.ctr1{font:700 54px var(--font);text-anchor:middle;fill:var(--ink)}
+.ctr2{font:600 17px var(--font);text-anchor:middle;fill:var(--muted)}
+.call rect{fill:var(--panel);stroke:var(--ref);stroke-width:2}
+.call text{font:650 13px var(--font);fill:var(--ref);text-anchor:middle}
+
+/* detail */
+.detail{display:flex;flex-direction:column;gap:12px}
+.detail h3{font-size:17px;display:flex;align-items:center;gap:8px}
+.detail h4{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.sec{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chips button{background:none;border:1px solid var(--broken);color:var(--broken);border-radius:4px;padding:1px 7px;font-weight:650;font-size:13px;font-variant-numeric:tabular-nums}
+.chips button.n{border-color:var(--line);color:var(--ink);font-weight:500;text-align:left}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.aln{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.aln.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.ztab{width:100%;border-collapse:collapse;font-size:13px}
+.ztab td{padding:4px 6px 4px 0;vertical-align:top;border-top:1px solid var(--line)}
+.bigbtn{padding:10px;font-weight:700;border-radius:8px;border:2px solid var(--broken);background:none;color:var(--broken)}
+.bigbtn.on{background:var(--broken);color:#1a1200}
+.bigbtn:disabled{cursor:default}
+
+/* summary table */
+.sum{width:100%;border-collapse:collapse;font-size:14px}
+.sum th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sum td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.sum tr.go{cursor:pointer} .sum tr.go:hover td{background:var(--raised)}
+.scroll{overflow-x:auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.cell{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+
+/* map */
+.mapcard{padding:8px;display:flex;flex-direction:column;gap:8px}
+.maptools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:2px 4px}
+#map{position:relative;height:max(420px,calc(100vh - 175px));overflow:hidden;border-radius:8px;background:var(--raised);cursor:grab;touch-action:none;user-select:none}
+#map.grab{cursor:grabbing}
+#tiles img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
+#mapsvg{position:absolute;inset:0;width:100%;height:100%}
+.attr{position:absolute;right:0;bottom:0;font-size:11px;background:#fffc;color:#222;padding:1px 6px;border-top-left-radius:4px}
+.attr a{color:inherit}
+.mdot{cursor:pointer}
+.mdot circle.c{fill:#ffd84d;stroke:#111;stroke-width:2;stroke-dasharray:3 2}
+.mdot.s0 circle.c{fill:#fff;stroke:#111;stroke-width:3;stroke-dasharray:none}
+.mdot.s1 circle.c{fill:var(--accent);stroke:#fff;stroke-width:2.5;stroke-dasharray:none}
+.mdot.s2 circle.c{fill:var(--ok);stroke:#fff;stroke-width:2.5;stroke-dasharray:none}
+.mdot .bk{fill:var(--broken);stroke:#111;stroke-width:1.5}
+.mdot .hl{fill:none;stroke:var(--broken);stroke-width:4}
+.mdot text{font:700 12px var(--font);text-anchor:middle;fill:#111;stroke:#fff;stroke-width:3.5px;paint-order:stroke}
+.mdot:hover circle.c{stroke:var(--accent);stroke-width:3.5}
+.mkey{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-left:auto}
+.mkey span{display:flex;align-items:center;gap:5px}
+.mkey i{width:12px;height:12px;border-radius:50%;border:2px dashed #111;background:#ffd84d}
+.mkey i.k0{border:2.5px solid #111;background:#fff} .mkey i.k1{border:0;background:var(--accent)} .mkey i.k2{border:0;background:var(--ok)}
+
+/* modal */
+#modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;z-index:20;padding:14px}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:640px;width:100%;max-height:calc(100% - 20px);overflow:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+.sheet h2{font-size:20px}
+.sheet p{margin:0;color:var(--muted)}
+.sheet .foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.zrow{display:grid;grid-template-columns:1.2fr .8fr 1.4fr .7fr 1.4fr auto;gap:6px;align-items:center}
+.zrow.h{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.big{font-size:30px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--ink)}
+
+@media (max-width:980px){.work{grid-template-columns:1fr}}
+@media (max-width:760px){
+  #side{position:fixed;inset:0 auto 0 0;width:min(300px,86vw);box-shadow:0 0 40px #0008}
+  body.noside #side{margin-left:calc(-1 * min(300px,86vw))}
+  .thead{grid-template-columns:1fr auto}
+  .thead .tname,.thead textarea{grid-column:1/-1}
+  .zrow{grid-template-columns:1fr 1fr}
+  .zrow.h{display:none}
+}
+@media (prefers-reduced-motion:reduce){#side{transition:none}}
+</style>
+</head>
+<body>
+<aside id="side" aria-label="Towers"></aside>
+<main id="main">
+  <div class="bar" id="bar"></div>
+  <div id="banner" hidden></div>
+  <div id="content"></div>
+</main>
+<div id="modal" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const KEY='studtrack.v1';
+const DEF={v:1,site:{name:'',n:92,washers:49,orderAt:1000,offset:0,code:'',pts:[]},
+  zones:[
+    {name:'Retro zone',color:'red',dia:27,torque:'1,500 N·m + 240°',ranges:'69-84, 23-43'},
+    {name:'Green zone',color:'green',dia:29,torque:'3,000 N·m',ranges:'44-46, 66-68'},
+    {name:'Standard',color:'white',dia:29,torque:'3,000 N·m',ranges:''}],
+  towers:[]};
+const ST=['Not started','In progress','Complete'], AX=['A1','A2','A3'], LENS=['610','655'], DIAS=[27,29];
+const COLORS=['white','red','green','blue','yellow'];
+const A0=69, COUNT=5;           // stud 1 sits about 69° clockwise from top in the procedure picture; stud 1 is the 5th from the ramp plate edge
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const strip=(k,v)=>k[0]==='_'?undefined:v;
+const fmt=n=>Number(n).toLocaleString('en-US');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+
+let S, SNAP=false, ZMAP=[];
+const ui={tower:null,axis:0,stud:null,quick:false,view:'home',hl:''};
+
+/* ---------- data ---------- */
+const fresh=()=>JSON.parse(JSON.stringify(DEF));
+function fixTower(t){t.axes=(t.axes||[]).slice(0,3);while(t.axes.length<3)t.axes.push({});
+  t.axes.forEach(a=>{a.b=a.b||{};a.notes=a.notes||'';a.st=a.st||0;a.aln=a.aln||''});t.notes=t.notes||'';t.len=t.len||'610';t.pt=t.pt||'';t.name=t.name==null?'':t.name;if(!t.id)t.id='t'+Math.random().toString(36).slice(2,9)}
+function migrate(o){const d=fresh();o=o&&typeof o==='object'?o:{};o.site=Object.assign(d.site,o.site||{});
+  if(!Array.isArray(o.zones)||!o.zones.length)o.zones=d.zones;if(!Array.isArray(o.site.pts))o.site.pts=[];o.towers=Array.isArray(o.towers)?o.towers:[];o.towers.forEach(fixTower);o.v=1;return o}
+function load(){try{const r=localStorage.getItem(KEY);if(r)return migrate(JSON.parse(r))}catch(e){}return fresh()}
+let saveErr=false;
+function save(){if(SNAP)return;S.saved=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S,strip));saveErr=false;const el=$('#saved');if(el){el.textContent='Saved';el.classList.add('show');clearTimeout(save._t);save._t=setTimeout(()=>el.classList.remove('show'),1200)}}
+  catch(e){saveErr=true;const el=$('#saved');if(el){el.textContent='Not saved: browser storage is blocked or full';el.classList.add('show')}}}
+function hsh(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return 'h'+(h>>>0).toString(36)}
+function unlocked(){if(!S.site.code)return true;try{return localStorage.getItem(KEY+'.u')===S.site.code}catch(e){return false}}
+const ro=()=>SNAP||!unlocked();
+const cur=()=>S.towers.find(t=>t.id===ui.tower)||null;
+
+function parseRanges(str,N){const out=[];String(str||'').split(/[,;]+/).forEach(p=>{const m=p.match(/(\d+)\s*(?:-|–|to)\s*(\d+)/i);let a,b;
+  if(m){a=+m[1];b=+m[2]}else{const s=p.match(/\d+/);if(!s)return;a=b=+s[0]}if(a<1||b<1||a>N||b>N)return;out.push([a,b])});return out}
+function rangeList(a,b,N){const r=[];let i=a;for(let k=0;k<N;k++){r.push(i);if(i===b)break;i=i%N+1}return r}
+function buildZones(){const N=S.site.n;ZMAP=new Array(N+1).fill(null);
+  S.zones.forEach(z=>{z._r=parseRanges(z.ranges,N);z._n=0});
+  const def=S.zones.find(z=>!z._r.length)||S.zones[S.zones.length-1];
+  S.zones.forEach(z=>z._r.forEach(([a,b])=>rangeList(a,b,N).forEach(n=>{if(!ZMAP[n])ZMAP[n]=z})));
+  for(let n=1;n<=N;n++){if(!ZMAP[n])ZMAP[n]=def;ZMAP[n]._n++}}
+function eff(t,ai,n){const o=t.axes[ai].b[n]||{},z=ZMAP[n]||S.zones[0];
+  return{z,broken:!!o.x,dia:o.d||z.dia,len:o.l||t.len,torque:o.t||z.torque,note:o.n||'',ov:!!(o.d||o.l||o.t)}}
+function setB(t,ai,n,k,v){const a=t.axes[ai],o=a.b[n]||(a.b[n]={});if(v===''||v==null||v===false)delete o[k];else o[k]=v;
+  if(!Object.keys(o).length)delete a.b[n];if(a.st===0)a.st=1}
+function towerSt(t){if(t.axes.every(a=>a.st===2))return 2;return t.axes.some(a=>a.st>0||a.aln||Object.keys(a.b).length)?1:0}
+const brokenOf=a=>Object.keys(a.b).filter(n=>a.b[n].x).map(Number).sort((x,y)=>x-y);
+function totals(){let aln=0,broken=0,done=0,prog=0;S.towers.forEach(t=>{const s=towerSt(t);if(s===2)done++;else if(s===1)prog++;
+  t.axes.forEach(a=>{if(a.aln)aln++;broken+=brokenOf(a).length})});
+  return{aln,broken,done,prog,w:Math.max(0,aln*S.site.washers-(S.site.offset||0))}}
+
+/* ---------- snapshot links ---------- */
+function b64(u8){let s='';for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function unb64(s){s=s.replace(/-/g,'+').replace(/_/g,'/');const bin=atob(s),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u}
+async function pack(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj,strip));
+  if(window.CompressionStream){try{const st=new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));return 'z'+b64(new Uint8Array(await new Response(st).arrayBuffer()))}catch(e){}}
+  return 'j'+b64(bytes)}
+async function unpack(str){const bytes=unb64(str.slice(1));
+  if(str[0]==='z'){const st=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));return JSON.parse(await new Response(st).text())}
+  return JSON.parse(new TextDecoder().decode(bytes))}
+function shareData(){const o=JSON.parse(JSON.stringify(S,strip));o.site.code='';o.shared=Date.now();return o}
+
+/* ---------- small builders ---------- */
+function seg(act,opts,curv,dis){return '<div class="seg" role="group">'+opts.map(o=>'<button data-act="'+act+'" data-v="'+esc(o[0])+'" class="'+(String(o[0])===String(curv)?'on':'')+'"'+(dis?' disabled':'')+' aria-pressed="'+(String(o[0])===String(curv))+'">'+esc(o[1])+'</button>').join('')+'</div>'}
+const dis=()=>ro()?' disabled':'';
+const tname=t=>t.name.trim()||'(unnamed tower)';
+
+/* ---------- sidebar + bar ---------- */
+function renderSide(){const T=totals(),warn=T.w>=S.site.orderAt&&S.site.orderAt>0;
+  let h='<div class="side-head"><div class="brand">Stud Tracker</div><div class="site">'+esc(S.site.name||'Site name not set')+'</div><div class="tiles">'+
+    '<div class="tile"><b>'+T.done+' / '+S.towers.length+'</b><span>towers complete</span></div>'+
+    '<div class="tile"><b>'+T.broken+'</b><span>broken studs</span></div>'+
+    '<div class="tile wide'+(warn?' warn':'')+'"><div><b>'+fmt(T.w)+'</b><span>extra washers, '+T.aln+' alignment'+(T.aln===1?'':'s')+'</span></div><em>'+(warn?'Time to order':'Order at '+fmt(S.site.orderAt))+'</em></div>'+
+    '</div></div><div class="side-actions"><button class="btn" data-act="home">Summary</button><button class="btn" data-act="map">Map</button>'+(ro()?'':'<button class="btn" data-act="addTowers">Add towers</button>')+'</div><ul class="tlist">';
+  if(!S.towers.length)h+='<li class="empty">No towers yet.</li>';
+  S.towers.forEach(t=>{const s=towerSt(t),br=t.axes.reduce((n,a)=>n+brokenOf(a).length,0),al=t.axes.filter(a=>a.aln).length;
+    h+='<li><button class="trow'+(t.id===ui.tower?' on':'')+'" data-act="tower" data-id="'+t.id+'"><span class="dot s'+s+'" title="'+ST[s]+'"></span><span class="nm">'+esc(tname(t))+'</span>'+
+      (al?'<span class="chip aln" title="Alignments">ALN '+al+'</span>':'')+(br?'<span class="chip brk" title="Broken studs">'+br+' broken</span>':'')+'<span class="chip">'+esc(t.len)+'</span></button></li>'});
+  $('#side').innerHTML=h+'</ul>'}
+function renderBar(){const t=cur();
+  let h='<button class="btn icon" data-act="toggleSide" aria-label="Show or hide the tower list"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="14" height="12" rx="1.5"/><path d="M7 3v12"/></svg></button>'+
+    '<div class="grow">'+esc(t?tname(t):ui.view==='map'?'Map':'Site summary')+'</div><span id="saved"></span>';
+  if(SNAP)h+='<span class="mode">View only</span>';
+  else{h+='<span class="mode'+(ro()?'':' edit')+'">'+(ro()?'Locked':'Editing')+'</span>';
+    if(S.site.code)h+='<button class="btn" data-act="'+(ro()?'unlock':'lock')+'">'+(ro()?'Unlock':'Lock')+'</button>';
+    h+='<button class="btn" data-act="share">Share</button>';
+    if(!ro())h+='<button class="btn" data-act="settings">Settings</button>'}
+  $('#bar').innerHTML=h;
+  const b=$('#banner');
+  if(SNAP){b.hidden=false;b.innerHTML='<span>Read-only snapshot'+(S.shared?' from '+new Date(S.shared).toLocaleString():'')+'. Nothing here can be changed.</span><button class="btn" data-act="exitSnap">Open my own tracker</button>'}
+  else b.hidden=true}
+
+/* ---------- diagram ---------- */
+function diagram(t,ai){const N=S.site.n,P=360/N,c=450,R=262;
+  const ang=n=>A0+(n-1)*P, pt=(r,d)=>{const a=d*Math.PI/180;return (c+r*Math.sin(a)).toFixed(1)+','+(c-r*Math.cos(a)).toFixed(1)};
+  const zc=k=>k==='white'?'var(--stud-line)':'var(--z-'+k+')';
+  let g='<circle cx="450" cy="450" r="'+R+'" fill="none" stroke="var(--ring)" stroke-width="52"/>',labs=[];
+  S.zones.forEach(z=>{if(z.color==='white')return;z._r.forEach(([a,b])=>{const cnt=rangeList(a,b,N).length,d0=ang(a)-P/2,d1=d0+cnt*P,lg=cnt*P>180?1:0;
+    g+='<path d="M450,450L'+pt(236,d0)+'A236,236 0 '+lg+' 1 '+pt(236,d1)+'Z" fill="'+zc(z.color)+'" opacity=".12"/>'+
+       '<path d="M'+pt(R,d0)+'A'+R+','+R+' 0 '+lg+' 1 '+pt(R,d1)+'" fill="none" stroke="'+zc(z.color)+'" stroke-width="52" opacity=".22"/>';
+    labs.push({n:a,col:zc(z.color)});if(b!==a)labs.push({n:b,col:zc(z.color)})})});
+  // ramp plate reference
+  const aE=ang(1)-(COUNT-0.5)*P;
+  g+='<path d="M'+pt(206,aE-24)+'A206,206 0 0 1 '+pt(206,aE)+'" fill="none" stroke="var(--plate)" stroke-width="10" stroke-linecap="round"/>'+
+     '<line x1="'+pt(212,aE).split(',')[0]+'" y1="'+pt(212,aE).split(',')[1]+'" x2="'+pt(326,aE).split(',')[0]+'" y2="'+pt(326,aE).split(',')[1]+'" stroke="var(--ref)" stroke-width="3.5"/>'+
+     '<path d="M'+pt(318,aE+1.5)+'A318,318 0 0 1 '+pt(318,ang(1)-1.5)+'" fill="none" stroke="var(--ref)" stroke-width="2.5" marker-end="url(#arr)"/>';
+  for(let k=1;k<=COUNT;k++)g+='<text class="cnt" x="'+pt(301,ang(1)-(COUNT-k)*P).split(',')[0]+'" y="'+pt(301,ang(1)-(COUNT-k)*P).split(',')[1]+'">'+k+'</text>';
+  const cb=pt(398,aE+3).split(',').map(Number);cb[0]=Math.min(cb[0],878-110);cb[1]=Math.max(cb[1],48);
+  g+='<g class="call"><rect x="'+(cb[0]-106)+'" y="'+(cb[1]-22)+'" width="212" height="44" rx="4"/><text x="'+cb[0]+'" y="'+(cb[1]-3)+'">Count '+COUNT+' from edge of ramp plate</text><text x="'+cb[0]+'" y="'+(cb[1]+14)+'">The '+COUNT+'th stud is stud 1</text></g>';
+  // boundary labels, staggered so neighbours do not overlap
+  labs=labs.filter((l,i)=>labs.findIndex(m=>m.n===l.n)===i).sort((a,b)=>ang(a.n)-ang(b.n));
+  const tiers=[334,374,410],last=[-99,-99,-99];
+  labs.forEach(l=>{const d=ang(l.n);let k=0;while(k<2&&d-last[k]<10)k++;last[k]=d;l.r=tiers[k]});
+  labs.push({n:1,col:'var(--ref)',r:366});
+  let lines='',boxes='';
+  labs.forEach(l=>{const d=ang(l.n),p0=pt(l.n===1?327:290,d).split(','),p1=pt(l.r-13,d).split(','),p=pt(l.r,d).split(',').map(Number),w=String(l.n).length>1?40:30;
+    lines+='<line x1="'+p0[0]+'" y1="'+p0[1]+'" x2="'+p1[0]+'" y2="'+p1[1]+'" stroke="'+l.col+'" stroke-width="3"/>';
+    boxes+='<g class="lab"><rect x="'+(p[0]-w/2)+'" y="'+(p[1]-14)+'" width="'+w+'" height="28" rx="3" stroke="'+l.col+'"/><text x="'+p[0]+'" y="'+p[1]+'" fill="'+l.col+'">'+l.n+'</text></g>'});
+  g+=lines+boxes;
+  for(let n=5;n<=N;n+=5){const p=pt(224,ang(n)).split(',');g+='<text class="tick" x="'+p[0]+'" y="'+p[1]+'">'+n+'</text>'}
+  // studs
+  for(let n=1;n<=N;n++){const e=eff(t,ai,n),p=pt(R,ang(n)).split(',').map(Number),x=p[0],y=p[1];
+    const lab='Stud '+n+', '+e.z.name+(e.broken?', broken':'')+', '+e.dia+' mm, '+e.torque+(e.note?', note: '+e.note:'');
+    g+='<g class="stud '+e.z.color+(e.broken?' broken':'')+'" data-act="stud" data-n="'+n+'" tabindex="0" role="button" aria-label="'+esc(lab)+'"><title>'+esc(lab)+'</title>'+
+      '<circle cx="'+x+'" cy="'+y+'" r="9.5" fill="transparent"/>'+
+      (n===1?'<circle class="one" cx="'+x+'" cy="'+y+'" r="10.5"/>':'')+
+      '<circle class="d" cx="'+x+'" cy="'+y+'" r="'+(e.broken?8.4:6.7)+'"/>'+
+      (e.broken?'<path class="x" d="M'+(x-4)+','+(y-4)+'l8,8M'+(x+4)+','+(y-4)+'l-8,8"/>':'')+
+      (e.note?'<circle class="nb" cx="'+pt(246,ang(n)).split(',')[0]+'" cy="'+pt(246,ang(n)).split(',')[1]+'" r="3.2"/>':'')+
+      (e.ov?'<rect class="ov" x="'+(+pt(279,ang(n)).split(',')[0]-2.6)+'" y="'+(+pt(279,ang(n)).split(',')[1]-2.6)+'" width="5.2" height="5.2"/>':'')+
+      (ui.stud===n?'<circle class="sel" cx="'+x+'" cy="'+y+'" r="12.5"/>':'')+'</g>'}
+  const a=t.axes[ai],br=brokenOf(a).length;
+  g+='<text class="ctr1" x="450" y="452" fill="var(--a'+(ai+1)+')">'+AX[ai]+'</text><text class="ctr2" x="450" y="482">'+esc(tname(t)).slice(0,28)+'</text>'+
+     '<text class="ctr2" x="450" y="508">'+(br?br+' broken':'No broken studs')+(a.aln?' · aligned':'')+'</text>';
+  return '<svg viewBox="22 22 856 856" role="group" aria-label="Stud circle, '+AX[ai]+'"><defs><marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--ref)"/></marker></defs>'+g+'</svg>'}
+
+/* ---------- main views ---------- */
+function towersForm(first){return '<div class="form">'+(first?'<label class="fl" style="grid-column:1/-1">Site name<input type="text" id="fSite" value="'+esc(S.site.name)+'" placeholder="Site name"></label>':'')+
+  '<label class="fl">Name starts with<input type="text" id="fPre" value="Tower "></label>'+
+  '<label class="fl">From number<input type="number" id="fFrom" value="'+(first?1:S.towers.length+1)+'" min="0"></label>'+
+  '<label class="fl">To number<input type="number" id="fTo" value="'+(first?40:S.towers.length+10)+'" min="0"></label>'+
+  '<label class="fl">Stud length<select id="fLen"><option>610</option><option>655</option></select></label></div>'}
+function renderHome(){const T=totals();
+  let h='<div class="stats"><div class="tile"><b>'+T.done+' / '+S.towers.length+'</b><span>towers complete</span></div><div class="tile"><b>'+T.prog+'</b><span>in progress</span></div>'+
+    '<div class="tile"><b>'+T.aln+'</b><span>alignments</span></div><div class="tile'+(T.w>=S.site.orderAt&&S.site.orderAt>0?' warn':'')+'"><b>'+fmt(T.w)+'</b><span>extra washers used</span></div><div class="tile"><b>'+T.broken+'</b><span>broken studs</span></div></div>';
+  if(!S.towers.length){h+='<div class="card sec"><h2>'+(ro()?'Nothing recorded yet':'Set up the site')+'</h2>'+(ro()?'<p class="hint">No towers have been added.</p>':'<p class="hint">Name the site and create the tower list. Towers can be renamed, added or removed later.</p>'+towersForm(true)+'<div class="row"><button class="btn primary" data-act="createTowers">Create towers</button></div>')+'</div>'}
+  else{h+='<div class="card scroll"><table class="sum"><thead><tr><th>Tower</th><th>Studs</th><th>Status</th>'+AX.map(a=>'<th>'+a+'</th>').join('')+'<th>Tower notes</th></tr></thead><tbody>';
+    S.towers.forEach(t=>{const s=towerSt(t);h+='<tr class="go" data-act="tower" data-id="'+t.id+'"><td><b>'+esc(tname(t))+'</b></td><td class="num">'+esc(t.len)+'</td><td><span class="pill s'+s+'">'+ST[s]+'</span></td>'+
+      t.axes.map(a=>{const br=brokenOf(a);return '<td><div class="cell"><span class="dot s'+a.st+'" title="'+ST[a.st]+'"></span>'+(a.aln?'<span class="chip aln" title="Aligned '+esc(a.aln)+'">ALN</span>':'')+(br.length?'<span class="chip brk">Broken '+br.map(n=>'#'+n).join(' ')+'</span>':'')+'</div></td>'}).join('')+
+      '<td>'+esc(t.notes)+'</td></tr>'});
+    h+='</tbody></table></div>'}
+  $('#content').innerHTML=h}
+function renderTabs(t){return '<div class="tabs">'+t.axes.map((a,i)=>{const br=brokenOf(a).length;return '<button class="tab'+(i===ui.axis?' on':'')+'" style="--ac:var(--a'+(i+1)+')" data-act="axis" data-v="'+i+'" aria-pressed="'+(i===ui.axis)+'"><b>'+AX[i]+'</b><small>'+ST[a.st]+'</small>'+(a.aln?'<span class="chip aln">ALN</span>':'')+(br?'<span class="chip brk">'+br+' broken</span>':'')+'</button>'}).join('')+'</div>'}
+function renderDetail(t){const ai=ui.axis,a=t.axes[ai],R=ro();
+  if(ui.stud){const n=ui.stud,e=eff(t,ai,n),o=a.b[n]||{};
+    return '<div class="card detail"><h3><span class="sw '+(e.z.color==='white'?'':e.z.color)+'"></span>Stud '+n+'<span class="chip">'+esc(e.z.name)+'</span><span style="flex:1"></span><button class="btn icon" data-act="prev" aria-label="Previous stud">‹</button><button class="btn icon" data-act="next" aria-label="Next stud">›</button><button class="btn icon" data-act="closeStud" aria-label="Back to axis">✕</button></h3>'+
+      '<button class="bigbtn'+(e.broken?' on':'')+'" data-act="broken"'+dis()+' aria-pressed="'+e.broken+'">'+(e.broken?'Broken stud':(R?'Not broken':'Mark as broken'))+'</button>'+
+      '<div class="sec"><h4>Diameter</h4>'+seg('dia',DIAS.map(d=>[d,d+' mm']),e.dia,R)+'<p class="hint">Zone default: '+e.z.dia+' mm</p></div>'+
+      '<div class="sec"><h4>Length</h4>'+seg('len',LENS.map(l=>[l,l]),e.len,R)+'<p class="hint">Tower default: '+esc(t.len)+'</p></div>'+
+      '<div class="sec"><h4>Torque</h4><input type="text" id="bTorque" data-f="btorque" value="'+esc(o.t||'')+'" placeholder="'+esc(e.z.torque)+'"'+dis()+'><p class="hint">Zone default: '+esc(e.z.torque)+'</p></div>'+
+      '<div class="sec"><h4>Stud note</h4><textarea id="bNote" data-f="bnote" rows="3" placeholder="'+(R?'No note':'Note for this stud')+'"'+dis()+'>'+esc(o.n||'')+'</textarea></div>'+
+      (R||!a.b[n]?'':'<button class="btn" data-act="resetStud">Reset this stud to defaults</button>')+'</div>'}
+  const br=brokenOf(a),notes=Object.keys(a.b).filter(n=>a.b[n].n).map(Number).sort((x,y)=>x-y),ovs=Object.keys(a.b).filter(n=>a.b[n].d||a.b[n].l||a.b[n].t).map(Number).sort((x,y)=>x-y);
+  let h='<div class="card detail"><h3><span class="sw" style="background:var(--a'+(ai+1)+');border-color:var(--a'+(ai+1)+')"></span>'+AX[ai]+'</h3>'+
+    '<div class="sec"><h4>Status</h4>'+seg('st',ST.map((s,i)=>[i,s]),a.st,R)+'</div>'+
+    '<div class="sec"><h4>Alignment</h4><div class="aln'+(a.aln?' on':'')+'">'+(a.aln?'<b>Aligned'+(a.aln!=='1'?' on '+esc(a.aln):'')+'</b><span class="hint">'+S.site.washers+' extra washers counted for this axis.</span>'+(R?'':'<div class="row"><button class="btn" data-act="rmAln">Remove alignment</button></div>')
+      :'<span class="hint">No alignment recorded on this axis.</span>'+(R?'':'<div class="row"><button class="btn primary" data-act="addAln">Add alignment</button></div>'))+'</div></div>'+
+    '<div class="sec"><h4>Axis notes</h4><textarea id="aNotes" data-f="anotes" rows="2" placeholder="'+(R?'No notes':'Notes for '+AX[ai])+'"'+dis()+'>'+esc(a.notes)+'</textarea></div>'+
+    '<div class="sec"><h4>Broken studs ('+br.length+')</h4>'+(br.length?'<div class="chips">'+br.map(n=>'<button data-act="stud" data-n="'+n+'">#'+n+'</button>').join('')+'</div>':'<p class="hint">None recorded.</p>')+'</div>';
+  if(notes.length)h+='<div class="sec"><h4>Stud notes</h4><div class="chips">'+notes.map(n=>'<button class="n" data-act="stud" data-n="'+n+'"><b>#'+n+'</b> '+esc(a.b[n].n)+'</button>').join('')+'</div></div>';
+  if(ovs.length)h+='<div class="sec"><h4>Size or torque changed</h4><div class="chips">'+ovs.map(n=>{const e=eff(t,ai,n);return '<button class="n" data-act="stud" data-n="'+n+'"><b>#'+n+'</b> '+e.dia+' mm, '+esc(e.len)+', '+esc(e.torque)+'</button>'}).join('')+'</div></div>';
+  h+='<div class="sec"><h4>Zones</h4><table class="ztab">'+S.zones.map(z=>'<tr><td><span class="sw '+(z.color==='white'?'':z.color)+'"></span></td><td><b>'+esc(z.name)+'</b><br><span class="hint">'+(z._r.length?z._r.map(r=>r[0]===r[1]?r[0]:r[0]+' to '+r[1]).join(', '):'all other studs')+' · '+z._n+' studs</span></td><td class="num">'+z.dia+' mm<br><span class="hint">'+esc(z.torque)+'</span></td></tr>').join('')+'</table></div>';
+  return h+'</div>'}
+function renderTower(t){const s=towerSt(t),R=ro();
+  let h='<div class="card thead"><input class="tname" type="text" id="tName" data-f="tname" value="'+esc(t.name)+'" placeholder="Tower name" aria-label="Tower name"'+dis()+'>'+
+    '<textarea id="tNotes" data-f="tnotes" rows="1" placeholder="'+(R?'No tower notes':'Tower notes')+'" aria-label="Tower notes"'+dis()+'>'+esc(t.notes)+'</textarea>'+
+    '<label class="fl" style="flex-direction:row;align-items:center;gap:8px">Stud length '+seg('tlen',LENS.map(l=>[l,l]),t.len,R)+'</label><span class="pill s'+s+'">'+ST[s]+'</span>'+'<div class="row" style="flex-wrap:nowrap">'+(t.pt&&S.site.pts.length?'<button class="btn" data-act="showOnMap">On map</button>'+(R?'':'<button class="btn" data-act="unlinkPt">Unlink</button>'):'')+(R?'':'<button class="btn danger" data-act="delTower">Delete</button>')+'</div>'+
+    '</div>'+
+    '<div id="tabs">'+renderTabs(t)+'</div><div class="work"><div class="card diawrap"><div class="diatools">'+
+    (R?'':'<button class="btn toggle'+(ui.quick?' on':'')+'" data-act="quick" aria-pressed="'+ui.quick+'">'+(ui.quick?'Marking broken: tap studs':'Quick-mark broken')+'</button>')+
+    '<div class="key"><span><i class="sw brk"></i>Broken</span><span><i class="sw nt"></i>Has note</span><span><i class="sw" style="border-radius:0;width:7px;height:7px;background:var(--ink);border:0"></i>Size or torque changed</span></div></div>'+
+    '<div id="dia">'+diagram(t,ui.axis)+'</div></div><div id="detail">'+renderDetail(t)+'</div></div>';
+  $('#content').innerHTML=h}
+/* ---------- map ---------- */
+const TILES=/^https?:$/.test(location.protocol);   // OpenStreetMap refuses tiles to pages opened straight from disk
+const M={z:12,cx:.5,cy:.5,fit:false,drag:false,bg:TILES};
+const mx=lon=>(lon+180)/360, my=lat=>{const r=lat*Math.PI/180;return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2};
+const short=t=>tname(t).replace(/^\s*(tower|turbine|wtg|t)[\s\-#]*(?=\d)/i,'');
+function fitMap(w,h){const P=S.site.pts;if(!P.length)return;let a=1,b=0,c=1,d=0;P.forEach(p=>{const x=mx(p.lon),y=my(p.lat);a=Math.min(a,x);b=Math.max(b,x);c=Math.min(c,y);d=Math.max(d,y)});
+  M.cx=(a+b)/2;M.cy=(c+d)/2;let z=18;while(z>3&&((b-a)*256*Math.pow(2,z)>w-90||(d-c)*256*Math.pow(2,z)>h-90))z--;M.z=z;M.fit=true}
+function drawMap(){const el=$('#map');if(!el)return;const w=el.clientWidth,h=el.clientHeight;if(!M.fit)fitMap(w,h);
+  const W=256*Math.pow(2,M.z),ox=M.cx*W-w/2,oy=M.cy*W-h/2,tl=$('#tiles');
+  if(M.bg){const n=Math.pow(2,M.z),keep={};
+    for(let tx=Math.floor(ox/256);tx<=Math.floor((ox+w)/256);tx++)for(let ty=Math.floor(oy/256);ty<=Math.floor((oy+h)/256);ty++){if(ty<0||ty>=n)continue;
+      const k=M.z+'/'+(((tx%n)+n)%n)+'/'+ty;keep[k]=1;let im=tl.querySelector('[data-k="'+k+'"]');
+      if(!im){im=new Image();im.dataset.k=k;im.alt='';im.draggable=false;im.onerror=function(){this.style.visibility='hidden'};im.src='https://tile.openstreetmap.org/'+k+'.png';tl.appendChild(im)}
+      im.style.left=Math.round(tx*256-ox)+'px';im.style.top=Math.round(ty*256-oy)+'px'}
+    [].slice.call(tl.children).forEach(im=>{if(!keep[im.dataset.k])im.remove()})}else tl.innerHTML='';
+  const byPt={};S.towers.forEach(t=>{if(t.pt)byPt[t.pt]=t});let lo='',hi='';
+  S.site.pts.forEach(p=>{const x=(mx(p.lon)*W-ox).toFixed(1),y=(my(p.lat)*W-oy).toFixed(1),t=byPt[p.id];
+    if(+x<-40||+y<-40||+x>w+40||+y>h+40)return;
+    if(!t){lo+='<g class="mdot" data-act="dot" data-id="'+esc(p.id)+'"'+(ro()?'':' tabindex="0" role="button"')+' aria-label="Turbine not linked to a tower"><title>'+(ro()?'Not linked to a tower':'Not linked yet. Select to link a tower.')+'</title><circle cx="'+x+'" cy="'+y+'" r="14" fill="transparent"/><circle class="c" cx="'+x+'" cy="'+y+'" r="7"/></g>';return}
+    const s=towerSt(t),br=t.axes.reduce((n,a)=>n+brokenOf(a).length,0),al=t.axes.filter(a=>a.aln).length,lab=tname(t)+', '+ST[s]+(br?', '+br+' broken':'')+(al?', '+al+' aligned':'');
+    hi+='<g class="mdot s'+s+'" data-act="dot" data-id="'+esc(p.id)+'" tabindex="0" role="button" aria-label="'+esc(lab)+'"><title>'+esc(lab)+'</title><circle cx="'+x+'" cy="'+y+'" r="15" fill="transparent"/>'+
+      (ui.hl===p.id?'<circle class="hl" cx="'+x+'" cy="'+y+'" r="16"/>':'')+'<circle class="c" cx="'+x+'" cy="'+y+'" r="9"/>'+(br?'<circle class="bk" cx="'+(+x+8)+'" cy="'+(+y-8)+'" r="5"/>':'')+
+      '<text x="'+x+'" y="'+(+y+24)+'">'+esc(short(t)).slice(0,14)+'</text></g>'});
+  $('#mapsvg').innerHTML=lo+hi}
+function zoomMap(dz,px,py){const el=$('#map');if(!el)return;const w=el.clientWidth,h=el.clientHeight,z=Math.min(18,Math.max(5,M.z+dz));if(z===M.z)return;
+  if(px==null){px=w/2;py=h/2}const W=256*Math.pow(2,M.z),wx=M.cx+(px-w/2)/W,wy=M.cy+(py-h/2)/W,W2=256*Math.pow(2,z);
+  M.z=z;M.cx=wx-(px-w/2)/W2;M.cy=wy-(py-h/2)/W2;drawMap()}
+function bindMap(){const el=$('#map');if(!el)return;let st=null;
+  el.addEventListener('pointerdown',e=>{if(e.button)return;st={x:e.clientX,y:e.clientY,cx:M.cx,cy:M.cy};M.drag=false});
+  el.addEventListener('wheel',e=>{e.preventDefault();const r=el.getBoundingClientRect();zoomMap(e.deltaY<0?1:-1,e.clientX-r.left,e.clientY-r.top)},{passive:false})
+  el._mv=e=>{if(!st)return;const dx=e.clientX-st.x,dy=e.clientY-st.y;if(!M.drag&&Math.hypot(dx,dy)<5)return;M.drag=true;el.classList.add('grab');const W=256*Math.pow(2,M.z);M.cx=st.cx-dx/W;M.cy=st.cy-dy/W;drawMap()};
+  el._up=()=>{if(!st)return;st=null;el.classList.remove('grab');setTimeout(()=>{M.drag=false},60)};
+  if(bindMap.mv){removeEventListener('pointermove',bindMap.mv);removeEventListener('pointerup',bindMap.up);removeEventListener('pointercancel',bindMap.up)}
+  bindMap.mv=el._mv;bindMap.up=el._up;addEventListener('pointermove',bindMap.mv);addEventListener('pointerup',bindMap.up);addEventListener('pointercancel',bindMap.up)}
+function renderMap(){const P=S.site.pts,R=ro();
+  if(!P.length){$('#content').innerHTML='<div class="card sec"><h2>No turbine positions loaded</h2>'+(R?'<p class="hint">The map has not been set up.</p>':
+    '<p class="hint">Load a CSV with one row per turbine and columns for longitude and latitude (for example xlong, ylat). A tower or name column is optional: with one, towers are created and linked for you. Without one, every turbine shows as a dot and you link each dot to a tower by selecting it.</p><div class="row"><label class="btn primary" style="cursor:pointer">Load positions (CSV)<input type="file" id="ptsFile" accept=".csv,text/csv,text/plain" hidden></label></div>')+'</div>';return}
+  const linked=S.towers.filter(t=>t.pt&&P.some(p=>p.id===t.pt)).length;
+  $('#content').innerHTML='<div class="card mapcard"><div class="maptools"><button class="btn icon" data-act="zin" aria-label="Zoom in">+</button><button class="btn icon" data-act="zout" aria-label="Zoom out">−</button><button class="btn" data-act="zfit">Fit all</button>'+
+    (TILES?'<button class="btn" data-act="bg" aria-pressed="'+M.bg+'">'+(M.bg?'Hide roads':'Show roads')+'</button>':'')+'<span class="hint"><b>'+linked+' of '+P.length+'</b> turbines linked'+(R?'':'. Select a dot to link it to a tower.')+(TILES?'':' Roads show once the app is opened from its web address.')+'</span>'+
+    '<div class="mkey"><span><i></i>Not linked</span><span><i class="k0"></i>Not started</span><span><i class="k1"></i>In progress</span><span><i class="k2"></i>Complete</span></div></div>'+
+    '<div id="map"><div id="tiles"></div><svg id="mapsvg"></svg>'+(M.bg?'<div class="attr">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors</div>':'')+'</div></div>';
+  drawMap();bindMap()}
+function parsePts(text){const rows=text.replace(/^﻿/,'').split(/\r?\n/).map(r=>r.split(/[,;\t]/).map(c=>c.trim().replace(/^"|"$/g,''))).filter(r=>r.some(c=>c));if(!rows.length)return[];
+  let ci=-1,cl=-1,ca=-1,cn=-1,start=0;const hd=rows[0];
+  if(hd.some(c=>c&&isNaN(parseFloat(c)))){start=1;hd.forEach((c,i)=>{const k=c.toLowerCase();if(/^(x_?long|long?|lng|longitude|x)$/.test(k))cl=i;else if(/^(y_?lat|lat|latitude|y)$/.test(k))ca=i;else if(/^(case_id|id|usgs_id)$/.test(k))ci=i;else if(/^(tower|name|turbine|label|wtg|t_name|tower_name)$/.test(k))cn=i})}
+  if(cl<0||ca<0){const nums=rows[start]?rows[start].map((c,i)=>[i,parseFloat(c)]).filter(x=>isFinite(x[1])&&/[.]/.test(rows[start][x[0]])):[];if(nums.length<2)return[];
+    const a=nums[nums.length-2],b=nums[nums.length-1];if(Math.abs(a[1])>90||Math.abs(b[1])<=Math.abs(a[1])){cl=a[0];ca=b[0]}else{ca=a[0];cl=b[0]}}
+  const out=[],seen={};rows.slice(start).forEach((r,i)=>{const lon=parseFloat(r[cl]),lat=parseFloat(r[ca]);if(!isFinite(lon)||!isFinite(lat)||Math.abs(lat)>85||Math.abs(lon)>180)return;
+    let id=ci>=0&&r[ci]?r[ci]:'p'+(i+1);while(seen[id])id+='_';seen[id]=1;out.push({id,lon,lat,name:cn>=0?r[cn]||'':''})});return out}
+function renderMain(){const t=cur();if(t)renderTower(t);else{ui.tower=null;if(ui.view==='map')renderMap();else renderHome()}}
+function render(){buildZones();renderSide();renderBar();renderMain()}
+let liteT;function lite(){clearTimeout(liteT);liteT=setTimeout(()=>{const t=cur();renderSide();const b=$('#bar .grow');if(b)b.textContent=t?tname(t):ui.view==='map'?'Map':'Site summary';if(t&&$('#dia')){$('#dia').innerHTML=diagram(t,ui.axis);$('#tabs').innerHTML=renderTabs(t)}},300)}
+
+/* ---------- modals ---------- */
+function modal(h){const m=$('#modal');m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+h+'</div>';m.hidden=false;const f=m.querySelector('[autofocus],input,textarea,button');f&&f.focus()}
+function closeModal(){$('#modal').hidden=true;$('#modal').innerHTML=''}
+function zoneRow(z){return '<div class="zrow z"><input type="text" class="zn" value="'+esc(z.name)+'" aria-label="Zone name"><select class="zc" aria-label="Colour">'+COLORS.map(c=>'<option'+(c===z.color?' selected':'')+'>'+c+'</option>').join('')+'</select><input type="text" class="zr" value="'+esc(z.ranges)+'" placeholder="blank = all other studs" aria-label="Stud ranges"><select class="zd" aria-label="Diameter">'+DIAS.map(d=>'<option'+(d==z.dia?' selected':'')+'>'+d+'</option>').join('')+'</select><input type="text" class="zt" value="'+esc(z.torque)+'" aria-label="Torque"><button class="btn icon" data-act="rmZone" aria-label="Remove zone">✕</button></div>'}
+function openSettings(){const T=totals();modal('<h2>Settings</h2>'+
+  '<div class="form"><label class="fl" style="grid-column:1/-1">Site name<input type="text" id="sName" value="'+esc(S.site.name)+'"></label>'+
+  '<label class="fl">Studs per axis<input type="number" id="sN" value="'+S.site.n+'" min="8" max="200"></label>'+
+  '<label class="fl">Extra washers per alignment<input type="number" id="sW" value="'+S.site.washers+'" min="0"></label>'+
+  '<label class="fl">Remind me to order at<input type="number" id="sO" value="'+S.site.orderAt+'" min="0"></label></div>'+
+  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Zones</h4><p class="hint">Ranges like 69-84, 23-43. Leave one zone blank to cover every other stud. Colours, sizes and torque here are the defaults each stud starts with.</p>'+
+  '<div class="zrow h"><span>Name</span><span>Colour</span><span>Studs</span><span>Dia mm</span><span>Torque</span><span></span></div><div id="zrows">'+S.zones.map(zoneRow).join('')+'</div><div class="row"><button class="btn" data-act="addZone">Add zone</button></div></div>'+
+  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Washer tally</h4><div class="row"><span>Running tally: <b>'+fmt(T.w)+'</b></span><button class="btn" data-act="resetTally">Reset to zero after ordering</button></div></div>'+
+  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Edit code</h4><p class="hint">'+(S.site.code?'An edit code is set. Type a new one to change it, or tick the box to remove it.':'Optional. With a code set, this browser has to be unlocked before anything can be changed.')+'</p>'+
+  '<div class="form"><label class="fl">New edit code<input type="password" id="sCode" autocomplete="new-password"></label>'+(S.site.code?'<label class="row" style="font-size:14px"><input type="checkbox" id="sNoCode" style="width:auto"> Remove the edit code</label>':'')+'</div></div>'+
+  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Map</h4><div class="row"><span>'+(S.site.pts.length?S.site.pts.length+' turbine positions loaded':'No turbine positions loaded')+'</span><label class="btn" style="cursor:pointer">'+(S.site.pts.length?'Replace':'Load')+' positions (CSV)<input type="file" id="ptsFile" accept=".csv,text/csv,text/plain" hidden></label>'+(S.site.pts.length?'<button class="btn danger" data-act="rmPts">Remove map</button>':'')+'</div></div>'+
+  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Start over</h4><div class="row"><button class="btn danger" data-act="wipe">Delete all towers</button><span class="hint">Keeps the site name, zones and edit code.</span></div></div>'+
+  '<div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="saveSettings">Save settings</button></div>')}
+async function openShare(){modal('<h2>Share</h2><p>Building the link…</p>');
+  const link=location.href.split('#')[0]+'#s='+await pack(shareData());
+  modal('<h2>Share</h2><div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Read-only link</h4>'+
+    '<p class="hint">Anyone with this link sees everything as it is right now and cannot change it. It is a snapshot: send a fresh link after you update.</p>'+
+    '<textarea id="shareLink" rows="3" readonly>'+esc(link)+'</textarea><div class="row"><button class="btn primary" data-act="copyLink">Copy link</button><span class="hint" id="copied"></span></div></div>'+
+    '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Files</h4><div class="row"><button class="btn" data-act="csv">Download CSV summary</button><button class="btn" data-act="backup">Download backup</button>'+(ro()?'':'<label class="btn" style="cursor:pointer">Restore backup<input type="file" id="restore" accept=".json,application/json" hidden></label>')+'</div>'+
+    '<p class="hint">Data is stored in this browser on this computer. Download a backup now and then.</p></div><div class="foot"><button class="btn" data-act="close">Close</button></div>')}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+function csv(){const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const head=['Tower','Stud length','Status','Tower notes'];AX.forEach(a=>head.push(a+' status',a+' aligned',a+' broken studs',a+' notes'));head.push('Extra washers');
+  const rows=[head.map(q).join(',')];
+  S.towers.forEach(t=>{const r=[tname(t),t.len,ST[towerSt(t)],t.notes];let al=0;
+    t.axes.forEach(a=>{if(a.aln)al++;const sn=Object.keys(a.b).filter(n=>a.b[n].n).map(n=>'#'+n+': '+a.b[n].n);r.push(ST[a.st],a.aln?(a.aln==='1'?'Yes':a.aln):'',brokenOf(a).join(' '),[a.notes].concat(sn).filter(Boolean).join(' | '))});
+    r.push(al*S.site.washers);rows.push(r.map(q).join(','))});
+  download((S.site.name||'stud-tracker').replace(/[^\w-]+/g,'_')+'_'+today()+'.csv','﻿'+rows.join('\r\n'),'text/csv')}
+
+/* ---------- actions ---------- */
+const A={
+  toggleSide(){document.body.classList.toggle('noside')},
+  home(){ui.tower=null;ui.stud=null;ui.view='home';render();narrow()},
+  map(){ui.tower=null;ui.stud=null;ui.view='map';render();narrow()},
+  zin(){zoomMap(1)}, zout(){zoomMap(-1)}, zfit(){M.fit=false;ui.hl='';drawMap()}, bg(){M.bg=!M.bg;renderMain()},
+  dot(el){if(M.drag)return;const id=el.dataset.id,t=S.towers.find(t=>t.pt===id);if(t){ui.tower=t.id;ui.stud=null;ui.axis=0;render();$('#content').scrollTop=0;return}
+    if(ro())return;A._dot=id;const p=S.site.pts.find(p=>p.id===id),free=S.towers.filter(t=>!t.pt);
+    modal('<h2>Link this turbine</h2><p class="num">'+p.lat.toFixed(5)+', '+p.lon.toFixed(5)+'</p><div class="form"><label class="fl">New tower name<input type="text" id="lName" value="Tower "></label><label class="fl">Stud length<select id="lLen"><option>610</option><option>655</option></select></label></div><div class="row"><button class="btn primary" data-act="linkNew">Create tower and link</button></div>'+
+      (free.length?'<div class="form"><label class="fl">Or a tower already in the list<select id="lOld">'+free.map(t=>'<option value="'+t.id+'">'+esc(tname(t))+'</option>').join('')+'</select></label></div><div class="row"><button class="btn" data-act="linkOld">Link this tower</button></div>':'')+
+      '<div class="foot"><button class="btn" data-act="close">Cancel</button></div>');const i=$('#lName');i.focus();i.setSelectionRange(i.value.length,i.value.length)},
+  linkNew(){const nm=$('#lName').value.trim();if(!nm||/^tower$/i.test(nm)){$('#lName').focus();return}const t={id:'t'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:nm,len:$('#lLen').value,pt:A._dot};fixTower(t);S.towers.push(t);ui.hl=A._dot;save();closeModal();render()},
+  linkOld(){const t=S.towers.find(t=>t.id===$('#lOld').value);if(t){t.pt=A._dot;ui.hl=A._dot;save()}closeModal();render()},
+  showOnMap(){const t=cur(),p=S.site.pts.find(p=>p.id===t.pt);if(!p)return;ui.hl=p.id;M.cx=mx(p.lon);M.cy=my(p.lat);M.z=Math.max(M.z,14);M.fit=true;ui.tower=null;ui.view='map';render()},
+  unlinkPt(){cur().pt='';save();render()},
+  applyPts(){const P=A._pts;A._pts=null;S.site.pts=P.map(p=>({id:p.id,lon:p.lon,lat:p.lat}));const ids={};P.forEach(p=>ids[p.id]=1);S.towers.forEach(t=>{if(t.pt&&!ids[t.pt])t.pt=''});
+    P.forEach(p=>{if(!p.name)return;let t=S.towers.find(t=>t.name.trim().toLowerCase()===p.name.toLowerCase());if(!t){t={name:p.name};fixTower(t);S.towers.push(t)}S.towers.forEach(o=>{if(o.pt===p.id)o.pt=''});t.pt=p.id});
+    M.fit=false;ui.view='map';ui.tower=null;save();closeModal();render()},
+  rmPts(){S.site.pts=[];S.towers.forEach(t=>t.pt='');M.fit=false;save();closeModal();render()},
+  tower(el){ui.hl='';ui.tower=el.dataset.id;ui.stud=null;ui.axis=0;render();narrow();$('#content').scrollTop=0},
+  axis(el){ui.axis=+el.dataset.v;ui.stud=null;renderMain()},
+  stud(el){const n=+el.dataset.n,t=cur();if(!t)return;ui.stud=n;if(ui.quick&&!ro()&&el.closest('svg')){setB(t,ui.axis,n,'x',!(t.axes[ui.axis].b[n]||{}).x);save();renderSide()}renderMain()},
+  closeStud(){ui.stud=null;renderMain()},
+  prev(){ui.stud=ui.stud>1?ui.stud-1:S.site.n;renderMain()},
+  next(){ui.stud=ui.stud<S.site.n?ui.stud+1:1;renderMain()},
+  quick(){ui.quick=!ui.quick;renderMain()},
+  broken(){const t=cur();setB(t,ui.axis,ui.stud,'x',!(t.axes[ui.axis].b[ui.stud]||{}).x);save();renderSide();renderMain()},
+  dia(el){const t=cur(),v=+el.dataset.v;setB(t,ui.axis,ui.stud,'d',v===ZMAP[ui.stud].dia?'':v);save();renderMain()},
+  len(el){const t=cur(),v=el.dataset.v;setB(t,ui.axis,ui.stud,'l',v===t.len?'':v);save();renderMain()},
+  resetStud(){const t=cur();delete t.axes[ui.axis].b[ui.stud];save();renderSide();renderMain()},
+  tlen(el){cur().len=el.dataset.v;save();render()},
+  st(el){cur().axes[ui.axis].st=+el.dataset.v;save();renderSide();renderMain()},
+  addAln(){const t=cur(),T=totals();modal('<h2>Add alignment</h2><p>'+esc(tname(t))+', '+AX[ui.axis]+'. Every stud is loosened and all washers are replaced.</p><div><div class="big">+'+S.site.washers+' washers</div><p>Running tally goes from '+fmt(T.w)+' to '+fmt(T.w+S.site.washers)+'.</p></div><div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="confirmAln" autofocus>Add alignment</button></div>')},
+  confirmAln(){const a=cur().axes[ui.axis];a.aln=today();if(a.st===0)a.st=1;save();closeModal();render()},
+  rmAln(){cur().axes[ui.axis].aln='';save();render()},
+  addTowers(){modal('<h2>Add towers</h2><p>Creates one tower per number. For a single tower, use the same number twice or leave the numbers blank and type the full name.</p>'+towersForm(false)+'<div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="createTowers">Add towers</button></div>')},
+  createTowers(){const pre=$('#fPre').value,f=$('#fFrom').value,to=$('#fTo').value,len=$('#fLen').value;if($('#fSite'))S.site.name=$('#fSite').value.trim();
+    let names=[];if(f===''&&to==='')names=[pre.trim()];else{let a=parseInt(f===''?to:f,10),b=parseInt(to===''?f:to,10);if(isNaN(a)||isNaN(b))return;if(b<a)[a,b]=[b,a];b=Math.min(b,a+499);for(let i=a;i<=b;i++)names.push(pre+i)}
+    names.forEach(nm=>{const t={id:'t'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:nm,len};fixTower(t);S.towers.push(t)});save();closeModal();render()},
+  delTower(){const t=cur();modal('<h2>Delete '+esc(tname(t))+'?</h2><p>This removes the tower and everything recorded on it. It cannot be undone.</p><div class="foot"><button class="btn" data-act="close" autofocus>Keep tower</button><button class="btn danger" data-act="confirmDel">Delete tower</button></div>')},
+  confirmDel(){S.towers=S.towers.filter(t=>t.id!==ui.tower);ui.tower=null;save();closeModal();render()},
+  wipe(){modal('<h2>Delete all '+S.towers.length+' towers?</h2><p>This removes every tower and everything recorded on them, and sets the washer tally back to zero. It cannot be undone.</p><div class="foot"><button class="btn" data-act="close" autofocus>Keep towers</button><button class="btn danger" data-act="confirmWipe">Delete all towers</button></div>')},
+  confirmWipe(){S.towers=[];S.site.offset=0;ui.tower=null;ui.stud=null;save();closeModal();render()},
+  settings(){openSettings()},
+  addZone(){$('#zrows').insertAdjacentHTML('beforeend',zoneRow({name:'New zone',color:'blue',ranges:'',dia:29,torque:''}))},
+  rmZone(el){if(document.querySelectorAll('#zrows .z').length>1)el.closest('.z').remove()},
+  resetTally(){S.site.offset=totals().aln*S.site.washers;save();closeModal();render()},
+  saveSettings(){const zs=[...document.querySelectorAll('#zrows .z')].map(r=>({name:r.querySelector('.zn').value.trim()||'Zone',color:r.querySelector('.zc').value,ranges:r.querySelector('.zr').value.trim(),dia:+r.querySelector('.zd').value,torque:r.querySelector('.zt').value.trim()}));
+    S.site.name=$('#sName').value.trim();S.site.n=Math.min(200,Math.max(8,parseInt($('#sN').value,10)||92));S.site.washers=Math.max(0,parseInt($('#sW').value,10)||0);S.site.orderAt=Math.max(0,parseInt($('#sO').value,10)||0);if(zs.length)S.zones=zs;
+    const c=$('#sCode').value;if($('#sNoCode')&&$('#sNoCode').checked)S.site.code='';else if(c){S.site.code=hsh(c);try{localStorage.setItem(KEY+'.u',S.site.code)}catch(e){}}
+    save();closeModal();render()},
+  lock(){try{localStorage.removeItem(KEY+'.u')}catch(e){}ui.quick=false;render()},
+  unlock(){modal('<h2>Unlock editing</h2><label class="fl">Edit code<input type="password" id="uCode" autocomplete="off"></label><p id="uErr" class="hint"></p><div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="doUnlock">Unlock</button></div>')},
+  doUnlock(){if(hsh($('#uCode').value)===S.site.code){try{localStorage.setItem(KEY+'.u',S.site.code)}catch(e){}closeModal();render()}else $('#uErr').textContent='That code does not match.'},
+  share(){openShare()},
+  copyLink(){const ta=$('#shareLink');ta.select();const ok=()=>{$('#copied').textContent='Copied'};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(ta.value).then(ok,()=>{try{document.execCommand('copy');ok()}catch(e){}});else{try{document.execCommand('copy');ok()}catch(e){}}},
+  csv(){csv()},
+  backup(){download((S.site.name||'stud-tracker').replace(/[^\w-]+/g,'_')+'_backup_'+today()+'.json',JSON.stringify(S,strip,1),'application/json')},
+  applyRestore(){S=migrate(A._restore);A._restore=null;ui.tower=null;save();closeModal();render()},
+  exitSnap(){history.replaceState(null,'',location.pathname+location.search);SNAP=false;S=load();ui.tower=null;render()},
+  close(){closeModal()}
+};
+function narrow(){if(innerWidth<=760)document.body.classList.add('noside')}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(el){if(el.disabled)return;const f=A[el.dataset.act];if(f)f(el);return}
+  if(e.target===$('#modal'))closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden){closeModal();return}
+  if(e.key==='Enter'){const m=$('#modal');if(!m.hidden&&e.target.tagName==='INPUT'){const p=m.querySelector('.btn.primary');if(p){e.preventDefault();p.click()}return}
+    const el=e.target.closest&&e.target.closest('g[data-act]');if(el){e.preventDefault();A[el.dataset.act](el)}}});
+document.addEventListener('input',e=>{const f=e.target.dataset&&e.target.dataset.f;if(!f||ro())return;const t=cur();if(!t)return;const v=e.target.value;
+  if(f==='tname')t.name=v;else if(f==='tnotes')t.notes=v;else if(f==='anotes')t.axes[ui.axis].notes=v;
+  else if(f==='btorque')setB(t,ui.axis,ui.stud,'t',v.trim());else if(f==='bnote')setB(t,ui.axis,ui.stud,'n',v);
+  save();lite()});
+document.addEventListener('change',e=>{if(e.target.id!=='ptsFile')return;const file=e.target.files[0];if(!file)return;const r=new FileReader();
+  r.onload=()=>{const P=parsePts(String(r.result)),named=P.filter(p=>p.name).length;
+    if(!P.length){modal('<h2>No positions found in that file</h2><p>It needs one row per turbine with longitude and latitude columns, for example xlong and ylat.</p><div class="foot"><button class="btn" data-act="close">Close</button></div>');return}
+    A._pts=P;modal('<h2>Load '+P.length+' turbine positions?</h2><p>'+(named?named+' rows have a tower name and will be created or linked automatically.':'No tower names in the file. Each turbine will show as a dot for you to link.')+(S.site.pts.length?' This replaces the positions already loaded.':'')+'</p><div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="applyPts" autofocus>Load positions</button></div>')};r.readAsText(file)});
+document.addEventListener('change',e=>{if(e.target.id!=='restore')return;const file=e.target.files[0];if(!file)return;const r=new FileReader();
+  r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!Array.isArray(o.towers))throw 0;A._restore=o;
+    modal('<h2>Restore this backup?</h2><p>'+esc(o.site&&o.site.name||'Unnamed site')+', '+o.towers.length+' towers. This replaces everything currently in this browser.</p><div class="foot"><button class="btn" data-act="close" autofocus>Cancel</button><button class="btn danger" data-act="applyRestore">Replace my data</button></div>')}
+    catch(x){modal('<h2>That file is not a Stud Tracker backup</h2><p>Pick a .json file made with Download backup.</p><div class="foot"><button class="btn" data-act="close">Close</button></div>')}};r.readAsText(file)});
+
+/* ---------- start ---------- */
+async function start(){
+  if(location.hash.indexOf('#s=')===0){try{S=migrate(await unpack(location.hash.slice(3)));SNAP=true}catch(e){S=load();SNAP=false;setTimeout(()=>modal('<h2>This shared link could not be read</h2><p>It may have been cut short when it was pasted. Ask for the link again.</p><div class="foot"><button class="btn" data-act="close">Close</button></div>'),0)}}
+  else{S=load();SNAP=false}
+  ui.tower=null;ui.stud=null;if(innerWidth<=760)document.body.classList.add('noside');render()}
+addEventListener('hashchange',start);
+addEventListener('resize',()=>{if($('#map'))drawMap()});
+start();
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
