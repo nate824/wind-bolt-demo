@@ -38,6 +38,7 @@ h1,h2,h3{margin:0;font-weight:650}
 /* sidebar */
 #side{width:300px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;transition:margin-left .25s ease;z-index:5}
 body.noside #side{margin-left:-300px}
+body.solo #side{display:none}
 .side-head{padding:16px 16px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
 .brand{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
 .brand span{letter-spacing:0;text-transform:none;font-weight:600}
@@ -250,7 +251,7 @@ const DEF={v:3,site:{name:'',n:92,washers:49,orderAt:1000,offset:0,code:'',pts:[
     {id:'green',name:'Green zone',color:'green',dia:29,torque:'',ranges:'44-46, 66-68',kit:true},
     {id:'std',name:'Standard',color:'white',dia:29,torque:'',ranges:'',kit:false}],
   towers:[]};
-const VER='0.1.4', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
+const VER='0.1.5', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
 const ST=['Not started','In progress','Complete'], AX=['A1','A2','A3'], LENS=['610','655'], DIAS=[27,29];
 const COLORS=['white','red','green','blue','yellow'];
 const A0=69, COUNT=5;           // stud 1 sits about 69° clockwise from top in the procedure picture; stud 1 is the 5th from the ramp plate edge
@@ -260,7 +261,7 @@ const strip=(k,v)=>k[0]==='_'?undefined:v;
 const fmt=n=>Number(n).toLocaleString('en-US');
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 
-let S, SNAP=false, ZMAP=[];
+let S, SNAP=false, SOLO=false, ZMAP=[];
 const ui={tower:null,axis:0,stud:null,quick:false,view:'home',hl:'',btOther:false,zOther:{}};
 
 /* ---------- data ---------- */
@@ -327,14 +328,14 @@ function compact(o){const D=fresh(),m={v:1},st={},zk=z=>[z.id,z.name,z.color,z.d
       Object.keys(x.b).forEach(n=>{const q={};Object.keys(x.b[n]).forEach(k=>{const v=x.b[n][k];if(v!==''&&v!=null&&v!==false)q[k]=v===true?1:v});if(Object.keys(q).length)b[n]=q});
       if(Object.keys(b).length)y.b=b;a[i]=y});
     while(a.length&&!Object.keys(a[a.length-1]).length)a.pop();if(a.length)r.a=a;return r});
-  if(o.shared)m.h=Math.round(o.shared/1000);return m}
+  if(o.shared)m.h=Math.round(o.shared/1000);if(o.openAxis)m.x=o.openAxis;return m}
 function expand(m){const o=fresh();o.v=3;if(m.n)o.site.name=m.n;Object.assign(o.site,m.s||{});
   if(m.z)o.zones=m.z.map(r=>({id:r[0],name:r[1],color:r[2],dia:r[3],torque:r[4],ranges:r[5],kit:!!r[6]}));
   o.site.pts=(m.p||[]).map((q,i)=>({id:'p'+i,lon:q[0]/1e5,lat:q[1]/1e5}));
   o.towers=(m.t||[]).map((r,i)=>({id:'t'+i,name:r.n||'',len:r.l||'610',notes:r.o||'',zo:r.z||{},pt:r.p!=null?'p'+r.p:'',
     axes:[0,1,2].map(j=>{const y=(r.a||[])[j]||{},b={};Object.keys(y.b||{}).forEach(n=>{const q={};Object.keys(y.b[n]).forEach(k=>{const v=y.b[n][k];q[k]=v===1&&k==='x'?true:v});b[n]=q});return{st:y.s||0,aln:y.a||'',notes:y.o||'',b}})}));
-  if(m.h)o.shared=m.h*1000;return o}
-function shareData(){const o=JSON.parse(JSON.stringify(S,strip));o.site.code='';o.shared=Date.now();return o}
+  if(m.h)o.shared=m.h*1000;o.openAxis=m.x||0;return o}
+function shareData(t){const o=JSON.parse(JSON.stringify(S,strip));o.site.code='';o.shared=Date.now();o.towers=o.towers.filter(x=>x.id===t.id);o.openAxis=ui.axis;return o}
 
 /* ---------- small builders ---------- */
 function seg(act,opts,curv,dis){return '<div class="seg" role="group">'+opts.map(o=>'<button data-act="'+act+'" data-v="'+esc(o[0])+'" class="'+(String(o[0])===String(curv)?'on':'')+'"'+(dis?' disabled':'')+' aria-pressed="'+(String(o[0])===String(curv))+'">'+esc(o[1])+'</button>').join('')+'</div>'}
@@ -354,7 +355,7 @@ function renderSide(){const T=totals(),warn=T.w>=S.site.orderAt&&S.site.orderAt>
       (al?'<span class="chip aln" title="Alignments">ALN '+al+'</span>':'')+(br?'<span class="chip brk" title="Broken studs">'+br+' broken</span>':'')+'<span class="chip">'+esc(t.len)+'</span></button></li>'});
   $('#side').innerHTML=h+'</ul>'}
 function renderBar(){const t=cur();
-  let h='<button class="btn icon" data-act="toggleSide" aria-label="Show or hide the tower list"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="14" height="12" rx="1.5"/><path d="M7 3v12"/></svg></button>'+
+  let h=(SOLO?'':'<button class="btn icon" data-act="toggleSide" aria-label="Show or hide the tower list"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="14" height="12" rx="1.5"/><path d="M7 3v12"/></svg></button>')+
     '<div class="grow">'+esc(t?tname(t):ui.view==='map'?'Map':'Site summary')+'</div><span id="saved"></span>';
   if(SNAP)h+='<span class="mode">View only</span>';
   else{h+='<span class="mode'+(ro()?'':' edit')+'">'+(ro()?'Locked':'Editing')+'</span>';
@@ -363,7 +364,7 @@ function renderBar(){const t=cur();
     if(!ro())h+='<button class="btn" data-act="settings">Settings</button>'}
   $('#bar').innerHTML=h;
   const b=$('#banner');
-  if(SNAP){b.hidden=false;b.innerHTML='<span>Read-only snapshot'+(S.shared?' from '+new Date(S.shared).toLocaleString():'')+'. Nothing here can be changed.</span><button class="btn" data-act="exitSnap">Open my own tracker</button>'}
+  if(SNAP){b.hidden=false;b.innerHTML='<span>Read-only snapshot'+(S.shared?' from '+new Date(S.shared).toLocaleString():'')+'. Nothing here can be changed.</span>'+(SOLO?'':'<button class="btn" data-act="exitSnap">Open my own tracker</button>')}
   else b.hidden=true}
 
 /* ---------- diagram ---------- */
@@ -471,7 +472,7 @@ function renderTower(t){const s=towerSt(t),R=ro();
   let h='<div class="card thead"><input class="tname" type="text" id="tName" data-f="tname" value="'+esc(t.name)+'" placeholder="Tower name" aria-label="Tower name"'+dis()+'>'+
     '<textarea id="tNotes" data-f="tnotes" rows="1" placeholder="'+(R?'No tower notes':'Tower notes')+'" aria-label="Tower notes"'+dis()+'>'+esc(t.notes)+'</textarea>'+
     '<span class="pill s'+s+'">'+ST[s]+'</span>'+'<div class="row" style="flex-wrap:nowrap">'+(t.pt&&S.site.pts.length?'<button class="btn" data-act="showOnMap">On map</button>'+(R?'':'<button class="btn" data-act="unlinkPt">Unlink</button>'):'')+(R?'':'<button class="btn danger" data-act="delTower">Delete</button>')+'</div>'+
-    '<div class="trow2"><label>Stud length '+seg('tlen',LENS.map(l=>[l,l]),t.len,R)+'</label><span class="hint">Torque and diameter for each zone are set in the Zones list on the right.</span></div>'+
+    '<div class="trow2"><label>Stud length '+seg('tlen',LENS.map(l=>[l,l]),t.len,R)+'</label>'+(R?'':'<span class="hint">Torque and diameter for each zone are set in the Zones list on the right.</span>')+'</div>'+
     '</div>'+
     '<div id="tabs">'+renderTabs(t)+'</div><div class="work"><div class="card diawrap"><div class="diatools">'+
     (R?'':'<button class="btn toggle'+(ui.quick?' on':'')+'" data-act="quick" aria-pressed="'+ui.quick+'">'+(ui.quick?'Marking broken: tap studs':'Quick-mark broken')+'</button>')+
@@ -552,15 +553,18 @@ function openSettings(){const T=totals();modal('<h2>Settings</h2>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Map</h4><div class="row"><span>'+(S.site.pts.length?S.site.pts.length+' turbine positions loaded':'No turbine positions loaded')+'</span><label class="btn" style="cursor:pointer">'+(S.site.pts.length?'Replace':'Load')+' positions (CSV)<input type="file" id="ptsFile" accept=".csv,text/csv,text/plain" hidden></label>'+(S.site.pts.length?'<button class="btn" data-act="setupLink">Setup link</button><button class="btn danger" data-act="rmPts">Remove map</button>':'')+'</div></div>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Start over</h4><div class="row"><button class="btn danger" data-act="wipe">Delete all towers</button><span class="hint">Keeps the site name, zones and edit code.</span></div></div>'+
   '<div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="saveSettings">Save settings</button></div>')}
-async function openShare(){modal('<h2>Share</h2><p>Building the link…</p>');
-  const link=location.href.split('#')[0]+'#s='+await pack(compact(shareData()));A._link=link;A._label=(S.site.name?S.site.name+' stud report':'Stud report')+', '+today();
-  modal('<h2>Share</h2><div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Read-only link</h4>'+
-    '<p class="hint">Anyone with this link sees the towers as they are right now and cannot change anything. It is a snapshot: send a fresh link after you update. The map is not included.</p>'+
+const FILES=()=>'<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Files</h4><div class="row"><button class="btn" data-act="csv">Download CSV summary</button><button class="btn" data-act="backup">Download backup</button>'+(ro()?'':'<label class="btn" style="cursor:pointer">Restore backup<input type="file" id="restore" accept=".json,application/json" hidden></label>')+'</div>'+
+  '<p class="hint">Data is stored in this browser on this computer. Download a backup now and then.</p></div><div class="foot"><button class="btn" data-act="close">Close</button></div>';
+const H4=t=>'<h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">'+t+'</h4>';
+async function openShare(){const t=cur();
+  if(!t){modal('<h2>Share</h2><div class="sec">'+H4('Read-only link')+'<p class="hint">Open the tower you want to share, pick the axis, then press Share. The link opens straight on that tower and axis.</p></div>'+FILES());return}
+  modal('<h2>Share</h2><p>Building the link…</p>');
+  const link=location.href.split('#')[0]+'#s='+await pack(compact(shareData(t)));A._link=link;A._label=tname(t)+' '+AX[ui.axis]+' stud report, '+today();
+  modal('<h2>Share '+esc(tname(t))+'</h2><div class="sec">'+H4('Read-only link')+
+    '<p class="hint">Opens straight on '+esc(tname(t))+', '+AX[ui.axis]+'. They can switch between A1, A2 and A3 and select studs, but cannot change anything. It is a snapshot: send a fresh link after you update.</p>'+
     '<div class="row"><button class="btn primary" data-act="copyNamed">Copy as named link</button><button class="btn" data-act="copyLink">Copy plain link</button><span class="hint" id="copied"></span></div>'+
-    '<p class="hint">A named link pastes into an email or Teams message as <a href="'+esc(link)+'">'+esc(A._label)+'</a> instead of the long address. Text messages show the plain link.</p>'+
-    '<textarea id="shareLink" rows="2" readonly>'+esc(link)+'</textarea></div>'+
-    '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Files</h4><div class="row"><button class="btn" data-act="csv">Download CSV summary</button><button class="btn" data-act="backup">Download backup</button>'+(ro()?'':'<label class="btn" style="cursor:pointer">Restore backup<input type="file" id="restore" accept=".json,application/json" hidden></label>')+'</div>'+
-    '<p class="hint">Data is stored in this browser on this computer. Download a backup now and then.</p></div><div class="foot"><button class="btn" data-act="close">Close</button></div>')}
+    '<p class="hint">A named link pastes into an email or Teams message as <a href="'+esc(link)+'">'+esc(A._label)+'</a>. Text messages show the plain link.</p>'+
+    '<textarea id="shareLink" rows="2" readonly>'+esc(link)+'</textarea></div>'+FILES())}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function csv(){const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const head=['Tower','Stud length','Zone values','Status','Tower notes'];AX.forEach(a=>head.push(a+' status',a+' aligned',a+' broken studs',a+' notes'));head.push('Extra washers');
@@ -638,7 +642,7 @@ const A={
   csv(){csv()},
   backup(){download((S.site.name||'stud-tracker').replace(/[^\w-]+/g,'_')+'_backup_'+today()+'.json',JSON.stringify(S,strip,1),'application/json')},
   applyRestore(){S=migrate(A._restore);A._restore=null;ui.tower=null;save();closeModal();render()},
-  exitSnap(){history.replaceState(null,'',location.pathname+location.search);SNAP=false;S=load();ui.tower=null;render()},
+  exitSnap(){history.replaceState(null,'',location.pathname+location.search);SNAP=false;SOLO=false;document.body.classList.remove('solo');S=load();ui.tower=null;render()},
   close(){closeModal()}
 };
 function narrow(){if(innerWidth<=760)document.body.classList.add('noside')}
@@ -676,7 +680,9 @@ async function start(){
       if(o.name&&!S.site.name)S.site.name=String(o.name).slice(0,80);A._pts=P;
       modal('<h2>Load '+P.length+' turbine positions?</h2><p>This sets up the map'+(S.site.pts.length?' and replaces the positions already loaded':'')+'. Nothing you have recorded on towers changes.</p><div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="applyPts" autofocus>Load positions</button></div>')}
       catch(e){modal('<h2>This setup link could not be read</h2><p>It may have been cut short when it was pasted. Ask for the link again.</p><div class="foot"><button class="btn" data-act="close">Close</button></div>')}},0)}
-  ui.tower=null;ui.stud=null;if(innerWidth<=760)document.body.classList.add('noside');render()}
+  ui.tower=null;ui.stud=null;ui.axis=0;SOLO=SNAP&&S.towers.length===1;document.body.classList.toggle('solo',SOLO);
+  if(SOLO){ui.tower=S.towers[0].id;ui.axis=Math.min(2,Math.max(0,+S.openAxis||0))}
+  if(innerWidth<=760)document.body.classList.add('noside');render()}
 addEventListener('hashchange',start);
 addEventListener('resize',()=>{if($('#map'))drawMap()});
 start();
