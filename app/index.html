@@ -250,7 +250,7 @@ const DEF={v:3,site:{name:'',n:92,washers:49,orderAt:1000,offset:0,code:'',pts:[
     {id:'green',name:'Green zone',color:'green',dia:29,torque:'',ranges:'44-46, 66-68',kit:true},
     {id:'std',name:'Standard',color:'white',dia:29,torque:'',ranges:'',kit:false}],
   towers:[]};
-const VER='0.1.3', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
+const VER='0.1.4', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
 const ST=['Not started','In progress','Complete'], AX=['A1','A2','A3'], LENS=['610','655'], DIAS=[27,29];
 const COLORS=['white','red','green','blue','yellow'];
 const A0=69, COUNT=5;           // stud 1 sits about 69° clockwise from top in the procedure picture; stud 1 is the 5th from the ramp plate edge
@@ -323,12 +323,11 @@ function compact(o){const D=fresh(),m={v:1},st={},zk=z=>[z.id,z.name,z.color,z.d
   if(o.site.name)m.n=o.site.name;['n','washers','alnTq','stdTq'].forEach(k=>{if(o.site[k]!==D.site[k])st[k]=o.site[k]});if(Object.keys(st).length)m.s=st;
   if(JSON.stringify(o.zones.map(zk))!==JSON.stringify(D.zones.map(zk)))m.z=o.zones.map(zk);
   const P=[];m.t=o.towers.map(t=>{const r={},a=[];if(t.name)r.n=t.name;if(t.len!=='610')r.l=t.len;if(t.notes)r.o=t.notes;if(t.zo&&Object.keys(t.zo).length)r.z=t.zo;
-    const pt=t.pt&&o.site.pts.find(p=>p.id===t.pt);if(pt){r.p=P.length;P.push([Math.round(pt.lon*1e5),Math.round(pt.lat*1e5)])}
     t.axes.forEach((x,i)=>{const y={},b={};if(x.st)y.s=x.st;if(x.aln)y.a=x.aln;if(x.notes)y.o=x.notes;
       Object.keys(x.b).forEach(n=>{const q={};Object.keys(x.b[n]).forEach(k=>{const v=x.b[n][k];if(v!==''&&v!=null&&v!==false)q[k]=v===true?1:v});if(Object.keys(q).length)b[n]=q});
       if(Object.keys(b).length)y.b=b;a[i]=y});
     while(a.length&&!Object.keys(a[a.length-1]).length)a.pop();if(a.length)r.a=a;return r});
-  if(P.length)m.p=P;if(o.shared)m.h=Math.round(o.shared/1000);return m}
+  if(o.shared)m.h=Math.round(o.shared/1000);return m}
 function expand(m){const o=fresh();o.v=3;if(m.n)o.site.name=m.n;Object.assign(o.site,m.s||{});
   if(m.z)o.zones=m.z.map(r=>({id:r[0],name:r[1],color:r[2],dia:r[3],torque:r[4],ranges:r[5],kit:!!r[6]}));
   o.site.pts=(m.p||[]).map((q,i)=>({id:'p'+i,lon:q[0]/1e5,lat:q[1]/1e5}));
@@ -348,7 +347,7 @@ function renderSide(){const T=totals(),warn=T.w>=S.site.orderAt&&S.site.orderAt>
     '<div class="tile"><b>'+T.done+' / '+S.towers.length+'</b><span>towers complete</span></div>'+
     '<div class="tile"><b>'+T.broken+'</b><span>broken studs</span></div>'+
     '<div class="tile wide'+(warn?' warn':'')+'"><div><b>'+fmt(T.w)+'</b><span>extra washers, '+T.aln+' alignment'+(T.aln===1?'':'s')+'</span></div><em>'+(warn?'Time to order':'Order at '+fmt(S.site.orderAt))+'</em></div>'+
-    '</div></div><div class="side-actions"><button class="btn" data-act="home">Summary</button><button class="btn" data-act="map">Map</button>'+(ro()?'':'<button class="btn" data-act="addTowers">Add towers</button>')+'</div><ul class="tlist">';
+    '</div></div><div class="side-actions"><button class="btn" data-act="home">Summary</button>'+(SNAP?'':'<button class="btn" data-act="map">Map</button>')+(ro()?'':'<button class="btn" data-act="addTowers">Add towers</button>')+'</div><ul class="tlist">';
   if(!S.towers.length)h+='<li class="empty">No towers yet.</li>';
   S.towers.forEach(t=>{const s=towerSt(t),br=t.axes.reduce((n,a)=>n+brokenOf(a).length,0),al=t.axes.filter(a=>a.aln).length;
     h+='<li><button class="trow'+(t.id===ui.tower?' on':'')+'" data-act="tower" data-id="'+t.id+'"><span class="dot s'+s+'" title="'+ST[s]+'"></span><span class="nm">'+esc(tname(t))+'</span>'+
@@ -531,7 +530,7 @@ function parsePts(text){const rows=text.replace(/^﻿/,'').split(/\r?\n/).map(r=
     const a=nums[nums.length-2],b=nums[nums.length-1];if(Math.abs(a[1])>90||Math.abs(b[1])<=Math.abs(a[1])){cl=a[0];ca=b[0]}else{ca=a[0];cl=b[0]}}
   const out=[],seen={};rows.slice(start).forEach((r,i)=>{const lon=parseFloat(r[cl]),lat=parseFloat(r[ca]);if(!isFinite(lon)||!isFinite(lat)||Math.abs(lat)>85||Math.abs(lon)>180)return;
     let id=ci>=0&&r[ci]?r[ci]:'p'+(i+1);while(seen[id])id+='_';seen[id]=1;out.push({id,lon,lat,name:cn>=0?r[cn]||'':''})});return out}
-function renderMain(){const t=cur();if(t)renderTower(t);else{ui.tower=null;if(ui.view==='map')renderMap();else renderHome()}}
+function renderMain(){const t=cur();if(t)renderTower(t);else{ui.tower=null;if(ui.view==='map'&&!SNAP)renderMap();else renderHome()}}
 function render(){buildZones();renderSide();renderBar();renderMain()}
 let liteT;function lite(){clearTimeout(liteT);liteT=setTimeout(()=>{const t=cur();renderSide();const b=$('#bar .grow');if(b)b.textContent=t?tname(t):ui.view==='map'?'Map':'Site summary';if(t&&$('#dia')){$('#dia').innerHTML=diagram(t,ui.axis);$('#tabs').innerHTML=renderTabs(t)}},300)}
 
@@ -554,10 +553,12 @@ function openSettings(){const T=totals();modal('<h2>Settings</h2>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Start over</h4><div class="row"><button class="btn danger" data-act="wipe">Delete all towers</button><span class="hint">Keeps the site name, zones and edit code.</span></div></div>'+
   '<div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="saveSettings">Save settings</button></div>')}
 async function openShare(){modal('<h2>Share</h2><p>Building the link…</p>');
-  const link=location.href.split('#')[0]+'#s='+await pack(compact(shareData()));
+  const link=location.href.split('#')[0]+'#s='+await pack(compact(shareData()));A._link=link;A._label=(S.site.name?S.site.name+' stud report':'Stud report')+', '+today();
   modal('<h2>Share</h2><div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Read-only link</h4>'+
-    '<p class="hint">Anyone with this link sees everything as it is right now and cannot change it. It is a snapshot: send a fresh link after you update.</p>'+
-    '<textarea id="shareLink" rows="3" readonly>'+esc(link)+'</textarea><div class="row"><button class="btn primary" data-act="copyLink">Copy link</button><span class="hint" id="copied"></span></div></div>'+
+    '<p class="hint">Anyone with this link sees the towers as they are right now and cannot change anything. It is a snapshot: send a fresh link after you update. The map is not included.</p>'+
+    '<div class="row"><button class="btn primary" data-act="copyNamed">Copy as named link</button><button class="btn" data-act="copyLink">Copy plain link</button><span class="hint" id="copied"></span></div>'+
+    '<p class="hint">A named link pastes into an email or Teams message as <a href="'+esc(link)+'">'+esc(A._label)+'</a> instead of the long address. Text messages show the plain link.</p>'+
+    '<textarea id="shareLink" rows="2" readonly>'+esc(link)+'</textarea></div>'+
     '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Files</h4><div class="row"><button class="btn" data-act="csv">Download CSV summary</button><button class="btn" data-act="backup">Download backup</button>'+(ro()?'':'<label class="btn" style="cursor:pointer">Restore backup<input type="file" id="restore" accept=".json,application/json" hidden></label>')+'</div>'+
     '<p class="hint">Data is stored in this browser on this computer. Download a backup now and then.</p></div><div class="foot"><button class="btn" data-act="close">Close</button></div>')}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
@@ -629,6 +630,9 @@ const A={
   unlock(){modal('<h2>Unlock editing</h2><label class="fl">Edit code<input type="password" id="uCode" autocomplete="off"></label><p id="uErr" class="hint"></p><div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="doUnlock">Unlock</button></div>')},
   doUnlock(){if(hsh($('#uCode').value)===S.site.code){try{localStorage.setItem(KEY+'.u',S.site.code)}catch(e){}closeModal();render()}else $('#uErr').textContent='That code does not match.'},
   share(){openShare()},
+  copyNamed(){const ok=t=>{$('#copied').textContent=t},html='<a href="'+esc(A._link)+'">'+esc(A._label)+'</a>';
+    try{if(navigator.clipboard&&window.ClipboardItem){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([A._link],{type:'text/plain'})})]).then(()=>ok('Copied. Paste it into your email.'),()=>A.copyLink());return}}catch(e){}
+    A.copyLink()},
   copyLink(){const ta=$('#shareLink');ta.select();const ok=()=>{$('#copied').textContent='Copied'};
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(ta.value).then(ok,()=>{try{document.execCommand('copy');ok()}catch(e){}});else{try{document.execCommand('copy');ok()}catch(e){}}},
   csv(){csv()},
