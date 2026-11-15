@@ -160,7 +160,12 @@ label.fl{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(-
 .aln.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .ztab{width:100%;border-collapse:collapse;font-size:13px}
 .ztab td{padding:4px 6px 4px 0;vertical-align:top;border-top:1px solid var(--line)}
-.ztab select{margin-top:3px;min-width:150px;padding:5px 8px}
+.ztab td{padding-bottom:8px}
+.zctl{display:grid;grid-template-columns:.8fr 1fr 1fr;gap:4px;margin-top:6px}
+.zctl select{padding:5px 4px;font-size:13px;min-width:0}
+.zoth{display:grid;gap:6px;margin-top:6px}
+.zoth input{padding:5px 8px}
+.linkbtn{background:none;border:0;padding:4px 0 0;color:var(--accent);font-size:12.5px;text-decoration:underline;cursor:pointer}
 .bigbtn{padding:10px;font-weight:700;border-radius:8px;border:2px solid var(--broken);background:none;color:var(--broken)}
 .bigbtn.on{background:var(--broken);color:#1a1200}
 .bigbtn:disabled{cursor:default}
@@ -239,13 +244,13 @@ label.fl{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(-
 (function(){
 "use strict";
 const KEY='studtrack.v1';
-const DEF={v:2,site:{name:'',n:92,washers:49,orderAt:1000,offset:0,code:'',pts:[],alnTq:'1,500 N·m + 240°',stdTq:'3,000 N·m'},
+const DEF={v:3,site:{name:'',n:92,washers:49,orderAt:1000,offset:0,code:'',pts:[],alnTq:'1,500 N·m + 240°',stdTq:'3,000 N·m'},
   zones:[
-    {name:'Retro zone',color:'red',dia:27,torque:'1,500 N·m + 240°',ranges:'69-84, 23-43',kit:true},
-    {name:'Green zone',color:'green',dia:29,torque:'',ranges:'44-46, 66-68',kit:true},
-    {name:'Standard',color:'white',dia:29,torque:'',ranges:'',kit:false}],
+    {id:'retro',name:'Retro zone',color:'red',dia:27,torque:'1,500 N·m + 240°',ranges:'69-84, 23-43',kit:true},
+    {id:'green',name:'Green zone',color:'green',dia:29,torque:'',ranges:'44-46, 66-68',kit:true},
+    {id:'std',name:'Standard',color:'white',dia:29,torque:'',ranges:'',kit:false}],
   towers:[]};
-const VER='0.1.1', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
+const VER='0.1.2', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
 const ST=['Not started','In progress','Complete'], AX=['A1','A2','A3'], LENS=['610','655'], DIAS=[27,29];
 const COLORS=['white','red','green','blue','yellow'];
 const A0=69, COUNT=5;           // stud 1 sits about 69° clockwise from top in the procedure picture; stud 1 is the 5th from the ramp plate edge
@@ -256,16 +261,20 @@ const fmt=n=>Number(n).toLocaleString('en-US');
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 
 let S, SNAP=false, ZMAP=[];
-const ui={tower:null,axis:0,stud:null,quick:false,view:'home',hl:'',btOther:false,ttOther:false};
+const ui={tower:null,axis:0,stud:null,quick:false,view:'home',hl:'',btOther:false,zOther:{}};
 
 /* ---------- data ---------- */
 const fresh=()=>JSON.parse(JSON.stringify(DEF));
 function fixTower(t){t.axes=(t.axes||[]).slice(0,3);while(t.axes.length<3)t.axes.push({});
-  t.axes.forEach(a=>{a.b=a.b||{};a.notes=a.notes||'';a.st=a.st||0;a.aln=a.aln||''});t.notes=t.notes||'';t.len=t.len||'610';t.pt=t.pt||'';t.tq=t.tq||'';t.name=t.name==null?'':t.name;if(!t.id)t.id='t'+Math.random().toString(36).slice(2,9)}
+  t.axes.forEach(a=>{a.b=a.b||{};a.notes=a.notes||'';a.st=a.st||0;a.aln=a.aln||''});t.notes=t.notes||'';t.len=t.len||'610';t.pt=t.pt||'';t.tq=t.tq||'';t.zo=t.zo&&typeof t.zo==='object'?t.zo:{};t.name=t.name==null?'':t.name;if(!t.id)t.id='t'+Math.random().toString(36).slice(2,9)}
 function migrate(o){const d=fresh();o=o&&typeof o==='object'?o:{};o.site=Object.assign(d.site,o.site||{});
   if(!Array.isArray(o.zones)||!o.zones.length)o.zones=d.zones;if(!Array.isArray(o.site.pts))o.site.pts=[];o.towers=Array.isArray(o.towers)?o.towers:[];o.towers.forEach(fixTower);
   // v2: a blank zone torque means the tower's standard torque; kit marks zones whose washers come with the kit
-  o.zones.forEach(z=>{if(z.kit===undefined){z.kit=z.color==='red'||z.color==='green';if(z.color!=='red'&&z.torque==='3,000 N·m')z.torque=''}z.torque=z.torque||''});o.v=2;return o}
+  o.zones.forEach(z=>{if(z.kit===undefined){z.kit=z.color==='red'||z.color==='green';if(z.color!=='red'&&z.torque==='3,000 N·m')z.torque=''}z.torque=z.torque||''});
+  // v3: zones get ids; each tower can set diameter, N·m and angle per zone (t.zo[zoneId])
+  const used={};o.zones.forEach((z,i)=>{let id=z.id||(z.color==='red'?'retro':z.color==='green'?'green':/standard/i.test(z.name)?'std':'z'+i);while(used[id])id+='_';used[id]=1;z.id=id});
+  o.towers.forEach(t=>{t.zo=t.zo&&typeof t.zo==='object'?t.zo:{};if(t.tq){const q=parseTq(t.tq);o.zones.forEach(z=>{if(!z.torque&&!t.zo[z.id])t.zo[z.id]={nm:q.nm,ang:q.ang}});t.tq=''}});
+  o.v=3;return o}
 function load(){try{const r=localStorage.getItem(KEY);if(r)return migrate(JSON.parse(r))}catch(e){}return fresh()}
 let saveErr=false;
 function save(){if(SNAP)return;S.saved=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S,strip));saveErr=false;const el=$('#saved');if(el){el.textContent='Saved';el.classList.add('show');clearTimeout(save._t);save._t=setTimeout(()=>el.classList.remove('show'),1200)}}
@@ -283,10 +292,15 @@ function buildZones(){const N=S.site.n;ZMAP=new Array(N+1).fill(null);
   const def=S.zones.find(z=>!z._r.length)||S.zones[S.zones.length-1];
   S.zones.forEach(z=>z._r.forEach(([a,b])=>rangeList(a,b,N).forEach(n=>{if(!ZMAP[n])ZMAP[n]=z})));
   for(let n=1;n<=N;n++){if(!ZMAP[n])ZMAP[n]=def;ZMAP[n]._n++}}
-const stdTq=t=>t.tq||S.site.stdTq, zoneTq=(t,z)=>z.torque||stdTq(t);
+const nmFmt=v=>{v=String(v==null?'':v).replace(/n\s*[·.\-]?\s*m/i,'').trim();const d=v.replace(/[,\s]/g,'');return /^\d+(\.\d+)?$/.test(d)?Number(d).toLocaleString('en-US'):v};
+const angFmt=v=>String(v==null?'':v).replace(/[°+\s]/g,'').replace(/deg(rees)?/i,'');
+function parseTq(str){str=String(str||'');const m=str.match(/^\s*([\d.,\s]+?)\s*(?:n\s*[·.\-]?\s*m)?\s*(?:\+\s*([\d.]+)\s*°?)?\s*$/i);return m?{nm:nmFmt(m[1]),ang:m[2]||''}:{nm:str.trim(),ang:''}}
+const fmtTq=(nm,ang)=>(nm?(/^[\d,.]+$/.test(nm)?nm+' N·m':nm):'')+(ang?' + '+ang+'°':'');
+function zdef(t,z){const o=(t.zo||{})[z.id]||{},d=parseTq(z.torque||S.site.stdTq);return{dia:o.dia||z.dia,nm:o.nm!=null?o.nm:d.nm,ang:o.ang!=null?o.ang:d.ang,changed:!!Object.keys(o).length}}
+const zoneTq=(t,z)=>{const d=zdef(t,z);return fmtTq(d.nm,d.ang)};
 const brkWord=o=>o&&o.k==='H'?' high':o&&o.k==='L'?' low':'';
 function eff(t,ai,n){const a=t.axes[ai],o=a.b[n]||{},z=ZMAP[n]||S.zones[0],base=a.aln?S.site.alnTq:zoneTq(t,z);
-  return{z,broken:!!o.x,brk:o.k||'',dia:o.d||z.dia,len:o.l||t.len,torque:o.t||base,base,note:o.n||'',ov:!!(o.d||o.l||o.t),washer:z.kit?'kit':a.aln?'add':''}}
+  return{z,broken:!!o.x,brk:o.k||'',dia:o.d||zdef(t,z).dia,len:o.l||t.len,torque:o.t||base,base,note:o.n||'',ov:!!(o.d||o.l||o.t),washer:z.kit?'kit':a.aln?'add':''}}
 function setB(t,ai,n,k,v){const a=t.axes[ai],o=a.b[n]||(a.b[n]={});if(v===''||v==null||v===false)delete o[k];else o[k]=v;
   if(!Object.keys(o).length)delete a.b[n];if(a.st===0)a.st=1}
 function towerSt(t){if(t.axes.every(a=>a.st===2))return 2;return t.axes.some(a=>a.st>0||a.aln||Object.keys(a.b).length)?1:0}
@@ -400,11 +414,22 @@ function renderHome(){const T=totals();
 function renderTabs(t){return '<div class="tabs">'+t.axes.map((a,i)=>{const br=brokenOf(a).length;return '<button class="tab'+(i===ui.axis?' on':'')+'" style="--ac:var(--a'+(i+1)+')" data-act="axis" data-v="'+i+'" aria-pressed="'+(i===ui.axis)+'"><b>'+AX[i]+'</b><small>'+ST[a.st]+'</small>'+(a.aln?'<span class="chip aln">ALN</span>':'')+(br?'<span class="chip brk">'+br+' broken</span>':'')+'</button>'}).join('')+'</div>'}
 const tqOther=(v,flag)=>flag||(!!v&&PRE.indexOf(v)<0);
 function tqSelect(id,v,base,flag,R,lead){const oth=tqOther(v,flag);return '<select id="'+id+'"'+(R?' disabled':'')+' aria-label="Torque"><option value=""'+(!v&&!oth?' selected':'')+'>'+esc(lead+base)+'</option>'+PRE.map(p=>'<option'+(v===p&&!oth?' selected':'')+'>'+esc(p)+'</option>').join('')+'<option value="__o"'+(oth?' selected':'')+'>Other…</option></select>'}
+const ZOPT={dia:[['27','27 mm'],['29','29 mm']],nm:[['1,500','1,500 N·m'],['3,000','3,000 N·m']],ang:[['','No angle'],['180','+ 180°'],['240','+ 240°']]};
+const ZLAB={dia:'Diameter',nm:'Torque',ang:'Angle'};
+function zoneCtl(z,d){const val={dia:String(d.dia),nm:d.nm,ang:d.ang};let other='';
+  const sel=['dia','nm','ang'].map(k=>{const key=z.id+'.'+k,v=val[k],known=ZOPT[k].some(o=>o[0]===v),oth=ui.zOther[key]||!known;
+    if(oth)other+='<label class="fl">'+ZLAB[k]+(k==='dia'?' (mm)':k==='nm'?' (N·m)':' (degrees)')+'<input type="text" inputmode="decimal" data-f="zo" data-z="'+esc(z.id)+'" data-k="'+k+'" value="'+esc(known?'':v)+'" placeholder="Type the value"></label>';
+    return '<select data-zsel="'+k+'" data-z="'+esc(z.id)+'" aria-label="'+esc(z.name)+' '+ZLAB[k]+'">'+ZOPT[k].map(o=>'<option value="'+o[0]+'"'+(!oth&&o[0]===v?' selected':'')+'>'+o[1]+'</option>').join('')+'<option value="__o"'+(oth?' selected':'')+'>Other…</option></select>'}).join('');
+  return '<div class="zctl">'+sel+'</div>'+(other?'<div class="zoth">'+other+'</div>':'')}
+function setZo(t,zid,k,v){const z=S.zones.find(z=>z.id===zid);if(!z)return;const o=t.zo[zid]||(t.zo[zid]={}),def=parseTq(z.torque||S.site.stdTq),base={dia:String(z.dia),nm:def.nm,ang:def.ang};
+  if(k==='dia'){const n=parseFloat(v);if(!v||isNaN(n)||String(n)===base.dia)delete o.dia;else o.dia=n}
+  else{const f=k==='nm'?nmFmt(v):angFmt(v);if(f===base[k])delete o[k];else o[k]=f}
+  if(!Object.keys(o).length)delete t.zo[zid]}
 function renderDetail(t){const ai=ui.axis,a=t.axes[ai],R=ro();
   if(ui.stud){const n=ui.stud,e=eff(t,ai,n),o=a.b[n]||{};
     return '<div class="card detail"><h3><span class="sw '+(e.z.color==='white'?'':e.z.color)+'"></span>Stud '+n+'<span class="chip">'+esc(e.z.name)+'</span><span style="flex:1"></span><button class="btn icon" data-act="prev" aria-label="Previous stud">‹</button><button class="btn icon" data-act="next" aria-label="Next stud">›</button><button class="btn icon" data-act="closeStud" aria-label="Back to axis">✕</button></h3>'+
       '<button class="bigbtn'+(e.broken?' on':'')+'" data-act="broken"'+dis()+' aria-pressed="'+e.broken+'">'+(e.broken?'Broken stud':(R?'Not broken':'Mark as broken'))+'</button>'+
-      '<div class="sec"><h4>Diameter</h4>'+seg('dia',DIAS.map(d=>[d,d+' mm']),e.dia,R)+'<p class="hint">Zone default: '+e.z.dia+' mm</p></div>'+
+      '<div class="sec"><h4>Diameter</h4>'+seg('dia',DIAS.map(d=>[d,d+' mm']),e.dia,R)+'<p class="hint">Zone value on this tower: '+zdef(t,e.z).dia+' mm</p></div>'+
       '<div class="sec"><h4>Length</h4>'+seg('len',LENS.map(l=>[l,l]),e.len,R)+'<p class="hint">Tower default: '+esc(t.len)+'</p></div>'+
       (e.broken?'<div class="sec"><h4>Where it broke</h4>'+seg('brk',[['H','High break'],['L','Low break']],e.brk,R)+'</div>':'')+
       '<div class="sec"><h4>Torque</h4>'+tqSelect('bTq',o.t||'',e.base,ui.btOther,R,'Default: ')+(tqOther(o.t||'',ui.btOther)?'<input type="text" id="bTorque" data-f="btorque" value="'+esc(o.t||'')+'" placeholder="Type the torque"'+dis()+'>':'')+
@@ -420,14 +445,17 @@ function renderDetail(t){const ai=ui.axis,a=t.axes[ai],R=ro();
     '<div class="sec"><h4>Broken studs ('+br.length+')</h4>'+(br.length?'<div class="chips">'+br.map(n=>'<button data-act="stud" data-n="'+n+'">#'+n+brkWord(a.b[n])+' · '+esc(ZMAP[n].name)+'</button>').join('')+'</div>':'<p class="hint">None recorded.</p>')+'</div>';
   if(notes.length)h+='<div class="sec"><h4>Stud notes</h4><div class="chips">'+notes.map(n=>'<button class="n" data-act="stud" data-n="'+n+'"><b>#'+n+'</b> '+esc(a.b[n].n)+'</button>').join('')+'</div></div>';
   if(ovs.length)h+='<div class="sec"><h4>Size or torque changed</h4><div class="chips">'+ovs.map(n=>{const e=eff(t,ai,n);return '<button class="n" data-act="stud" data-n="'+n+'"><b>#'+n+'</b> '+e.dia+' mm, '+esc(e.len)+', '+esc(e.torque)+'</button>'}).join('')+'</div></div>';
-  h+='<div class="sec"><h4>Zones</h4><table class="ztab">'+S.zones.map(z=>'<tr><td><span class="sw '+(z.color==='white'?'':z.color)+'"></span></td><td><b>'+esc(z.name)+'</b><br><span class="hint">'+(z._r.length?z._r.map(r=>r[0]===r[1]?r[0]:r[0]+' to '+r[1]).join(', '):'all other studs')+' · '+z._n+' studs</span></td><td class="num">'+z.dia+' mm<br>'+(!z.torque&&!z.kit&&!a.aln&&!R?tqSelect('zTq',t.tq===S.site.stdTq?'':t.tq,S.site.stdTq,ui.ttOther,R,''):'<span class="hint">'+esc(a.aln?S.site.alnTq:zoneTq(t,z))+'</span>')+'<span class="hint">'+(z.kit?'<br>washers in kit':a.aln?'<br>washers added':'')+'</span></td></tr>').join('')+'</table>'+(a.aln||R?'':'<p class="hint">Standard torque applies to this whole tower. Pick 3,000 N·m + 180° here or at the top of the page.</p>')+'</div>';
+  h+='<div class="sec"><h4>Zones on this tower</h4>'+(a.aln?'<p class="hint">'+AX[ai]+' is aligned, so every stud on it is at '+esc(S.site.alnTq)+'. The zone values below apply to the axes that are not aligned.</p>':'')+
+    '<table class="ztab">'+S.zones.map(z=>{const d=zdef(t,z);return '<tr><td><span class="sw '+(z.color==='white'?'':z.color)+'"></span></td><td><b>'+esc(z.name)+'</b>'+(d.changed?' <span class="chip">changed</span>':'')+
+      '<br><span class="hint">'+(z._r.length?z._r.map(r=>r[0]===r[1]?r[0]:r[0]+' to '+r[1]).join(', '):'all other studs')+' · '+z._n+' studs'+(z.kit?' · washers in kit':a.aln?' · washers added':'')+'</span>'+
+      (R?'<div class="hint num">'+d.dia+' mm · '+esc(fmtTq(d.nm,d.ang))+'</div>':zoneCtl(z,d))+
+      (d.changed&&!R?'<button class="linkbtn" data-act="zReset" data-z="'+esc(z.id)+'">Back to the usual values</button>':'')+'</td></tr>'}).join('')+'</table></div>';
   return h+'</div>'}
 function renderTower(t){const s=towerSt(t),R=ro();
   let h='<div class="card thead"><input class="tname" type="text" id="tName" data-f="tname" value="'+esc(t.name)+'" placeholder="Tower name" aria-label="Tower name"'+dis()+'>'+
     '<textarea id="tNotes" data-f="tnotes" rows="1" placeholder="'+(R?'No tower notes':'Tower notes')+'" aria-label="Tower notes"'+dis()+'>'+esc(t.notes)+'</textarea>'+
     '<span class="pill s'+s+'">'+ST[s]+'</span>'+'<div class="row" style="flex-wrap:nowrap">'+(t.pt&&S.site.pts.length?'<button class="btn" data-act="showOnMap">On map</button>'+(R?'':'<button class="btn" data-act="unlinkPt">Unlink</button>'):'')+(R?'':'<button class="btn danger" data-act="delTower">Delete</button>')+'</div>'+
-    '<div class="trow2"><label>Stud length '+seg('tlen',LENS.map(l=>[l,l]),t.len,R)+'</label><label>Standard torque '+tqSelect('tTq',t.tq===S.site.stdTq?'':t.tq,S.site.stdTq,ui.ttOther,R,'')+'</label>'+(tqOther(t.tq,ui.ttOther)?'<input type="text" id="tTqO" data-f="ttq" value="'+esc(t.tq)+'" placeholder="Type the torque" aria-label="Standard torque"'+dis()+'>':'')+
-    '<span class="hint">Retro zone stays at '+esc((S.zones.find(z=>z.torque)||{}).torque||S.site.alnTq)+'.</span></div>'+
+    '<div class="trow2"><label>Stud length '+seg('tlen',LENS.map(l=>[l,l]),t.len,R)+'</label><span class="hint">Torque and diameter for each zone are set in the Zones list on the right.</span></div>'+
     '</div>'+
     '<div id="tabs">'+renderTabs(t)+'</div><div class="work"><div class="card diawrap"><div class="diatools">'+
     (R?'':'<button class="btn toggle'+(ui.quick?' on':'')+'" data-act="quick" aria-pressed="'+ui.quick+'">'+(ui.quick?'Marking broken: tap studs':'Quick-mark broken')+'</button>')+
@@ -493,14 +521,14 @@ let liteT;function lite(){clearTimeout(liteT);liteT=setTimeout(()=>{const t=cur(
 /* ---------- modals ---------- */
 function modal(h){const m=$('#modal');m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+h+'</div>';m.hidden=false;const f=m.querySelector('[autofocus],input,textarea,button');f&&f.focus()}
 function closeModal(){$('#modal').hidden=true;$('#modal').innerHTML=''}
-function zoneRow(z){return '<div class="zrow z"><input type="text" class="zn" value="'+esc(z.name)+'" aria-label="Zone name"><select class="zc" aria-label="Colour">'+COLORS.map(c=>'<option'+(c===z.color?' selected':'')+'>'+c+'</option>').join('')+'</select><input type="text" class="zr" value="'+esc(z.ranges)+'" placeholder="blank = all other studs" aria-label="Stud ranges"><select class="zd" aria-label="Diameter">'+DIAS.map(d=>'<option'+(d==z.dia?' selected':'')+'>'+d+'</option>').join('')+'</select><input type="text" class="zt" value="'+esc(z.torque)+'" placeholder="tower standard" aria-label="Torque"><input type="checkbox" class="zk"'+(z.kit?' checked':'')+' aria-label="Washers come with the kit"><button class="btn icon" data-act="rmZone" aria-label="Remove zone">✕</button></div>'}
+function zoneRow(z){return '<div class="zrow z" data-id="'+esc(z.id||'')+'"><input type="text" class="zn" value="'+esc(z.name)+'" aria-label="Zone name"><select class="zc" aria-label="Colour">'+COLORS.map(c=>'<option'+(c===z.color?' selected':'')+'>'+c+'</option>').join('')+'</select><input type="text" class="zr" value="'+esc(z.ranges)+'" placeholder="blank = all other studs" aria-label="Stud ranges"><select class="zd" aria-label="Diameter">'+DIAS.map(d=>'<option'+(d==z.dia?' selected':'')+'>'+d+'</option>').join('')+'</select><input type="text" class="zt" value="'+esc(z.torque)+'" placeholder="usual standard" aria-label="Torque"><input type="checkbox" class="zk"'+(z.kit?' checked':'')+' aria-label="Washers come with the kit"><button class="btn icon" data-act="rmZone" aria-label="Remove zone">✕</button></div>'}
 function openSettings(){const T=totals();modal('<h2>Settings</h2>'+
   '<div class="form"><label class="fl" style="grid-column:1/-1">Site name<input type="text" id="sName" value="'+esc(S.site.name)+'"></label>'+
   '<label class="fl">Studs per axis<input type="number" id="sN" value="'+S.site.n+'" min="8" max="200"></label>'+
   '<label class="fl">Extra washers per alignment<input type="number" id="sW" value="'+S.site.washers+'" min="0"></label>'+
   '<label class="fl">Remind me to order at<input type="number" id="sO" value="'+S.site.orderAt+'" min="0"></label>'+
   '<label class="fl">Usual standard torque<input type="text" id="sStd" value="'+esc(S.site.stdTq)+'"></label><label class="fl">Torque after an alignment<input type="text" id="sAln" value="'+esc(S.site.alnTq)+'"></label></div>'+
-  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Zones</h4><p class="hint">Ranges like 69-84, 23-43. Leave the studs blank on one zone to cover every other stud. A blank torque means the standard torque set on each tower. Tick Kit where washers come with the kit; an alignment adds washers to every other stud.</p>'+
+  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Zones</h4><p class="hint">Ranges like 69-84, 23-43. Leave the studs blank on one zone to cover every other stud. A blank torque means the usual standard torque. These are the starting values: each tower can change them in its Zones list. Tick Kit where washers come with the kit; an alignment adds washers to every other stud.</p>'+
   '<div class="zrow h"><span>Name</span><span>Colour</span><span>Studs</span><span>Dia mm</span><span>Torque</span><span>Kit</span><span></span></div><div id="zrows">'+S.zones.map(zoneRow).join('')+'</div><div class="row"><button class="btn" data-act="addZone">Add zone</button></div></div>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Washer tally</h4><div class="row"><span>Running tally: <b>'+fmt(T.w)+'</b></span><button class="btn" data-act="resetTally">Reset to zero after ordering</button></div></div>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Edit code</h4><p class="hint">'+(S.site.code?'An edit code is set. Type a new one to change it, or tick the box to remove it.':'Optional. With a code set, this browser has to be unlocked before anything can be changed.')+'</p>'+
@@ -517,9 +545,9 @@ async function openShare(){modal('<h2>Share</h2><p>Building the link…</p>');
     '<p class="hint">Data is stored in this browser on this computer. Download a backup now and then.</p></div><div class="foot"><button class="btn" data-act="close">Close</button></div>')}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function csv(){const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
-  const head=['Tower','Stud length','Standard torque','Status','Tower notes'];AX.forEach(a=>head.push(a+' status',a+' aligned',a+' broken studs',a+' notes'));head.push('Extra washers');
+  const head=['Tower','Stud length','Zone values','Status','Tower notes'];AX.forEach(a=>head.push(a+' status',a+' aligned',a+' broken studs',a+' notes'));head.push('Extra washers');
   const rows=[head.map(q).join(',')];
-  S.towers.forEach(t=>{const r=[tname(t),t.len,stdTq(t),ST[towerSt(t)],t.notes];let al=0;
+  S.towers.forEach(t=>{const r=[tname(t),t.len,S.zones.map(z=>{const d=zdef(t,z);return z.name+': '+d.dia+' mm, '+fmtTq(d.nm,d.ang)}).join('; '),ST[towerSt(t)],t.notes];let al=0;
     t.axes.forEach(a=>{if(a.aln)al++;const sn=Object.keys(a.b).filter(n=>a.b[n].n).map(n=>'#'+n+': '+a.b[n].n);r.push(ST[a.st],a.aln?(a.aln==='1'?'Yes':a.aln):'',brokenOf(a).map(n=>n+(brkWord(a.b[n])?' ('+brkWord(a.b[n]).trim()+')':'')).join(', '),[a.notes].concat(sn).filter(Boolean).join(' | '))});
     r.push(al*S.site.washers);rows.push(r.map(q).join(','))});
   download((S.site.name||'stud-tracker').replace(/[^\w-]+/g,'_')+'_'+today()+'.csv','﻿'+rows.join('\r\n'),'text/csv')}
@@ -545,16 +573,17 @@ const A={
   async setupLink(){const link=location.href.split('#')[0]+'#load='+await pack({name:S.site.name,pts:S.site.pts});
     modal('<h2>Map setup link</h2><p>Send this to whoever needs the map. Opening it loads the '+S.site.pts.length+' turbine positions into their tracker in one step, with no file. It carries positions only, none of your work.</p><textarea id="shareLink" rows="3" readonly>'+esc(link)+'</textarea><div class="row"><button class="btn primary" data-act="copyLink">Copy link</button><span class="hint" id="copied"></span></div><div class="foot"><button class="btn" data-act="close">Close</button></div>')},
   rmPts(){S.site.pts=[];S.towers.forEach(t=>t.pt='');M.fit=false;save();closeModal();render()},
-  tower(el){ui.hl='';ui.btOther=false;ui.ttOther=false;ui.tower=el.dataset.id;ui.stud=null;ui.axis=0;render();narrow();$('#content').scrollTop=0},
+  tower(el){ui.hl='';ui.btOther=false;ui.zOther={};ui.tower=el.dataset.id;ui.stud=null;ui.axis=0;render();narrow();$('#content').scrollTop=0},
   axis(el){ui.axis=+el.dataset.v;ui.stud=null;renderMain()},
   brk(el){const t=cur(),o=t.axes[ui.axis].b[ui.stud]||{};setB(t,ui.axis,ui.stud,'k',o.k===el.dataset.v?'':el.dataset.v);save();renderMain()},
   stud(el){const n=+el.dataset.n,t=cur();if(!t)return;ui.stud=n;ui.btOther=false;if(ui.quick&&!ro()&&el.closest('svg')){setB(t,ui.axis,n,'x',!(t.axes[ui.axis].b[n]||{}).x);save();renderSide()}renderMain()},
+  zReset(el){delete cur().zo[el.dataset.z];Object.keys(ui.zOther).forEach(k=>{if(k.indexOf(el.dataset.z+'.')===0)delete ui.zOther[k]});save();renderMain()},
   closeStud(){ui.stud=null;ui.btOther=false;renderMain()},
   prev(){ui.btOther=false;ui.stud=ui.stud>1?ui.stud-1:S.site.n;renderMain()},
   next(){ui.btOther=false;ui.stud=ui.stud<S.site.n?ui.stud+1:1;renderMain()},
   quick(){ui.quick=!ui.quick;renderMain()},
   broken(){const t=cur(),was=(t.axes[ui.axis].b[ui.stud]||{}).x;setB(t,ui.axis,ui.stud,'x',!was);if(was)setB(t,ui.axis,ui.stud,'k','');save();renderSide();renderMain()},
-  dia(el){const t=cur(),v=+el.dataset.v;setB(t,ui.axis,ui.stud,'d',v===ZMAP[ui.stud].dia?'':v);save();renderMain()},
+  dia(el){const t=cur(),v=+el.dataset.v;setB(t,ui.axis,ui.stud,'d',v===zdef(t,ZMAP[ui.stud]).dia?'':v);save();renderMain()},
   len(el){const t=cur(),v=el.dataset.v;setB(t,ui.axis,ui.stud,'l',v===t.len?'':v);save();renderMain()},
   resetStud(){const t=cur();delete t.axes[ui.axis].b[ui.stud];save();renderSide();renderMain()},
   tlen(el){cur().len=el.dataset.v;save();render()},
@@ -574,7 +603,7 @@ const A={
   addZone(){$('#zrows').insertAdjacentHTML('beforeend',zoneRow({name:'New zone',color:'blue',ranges:'',dia:29,torque:'',kit:false}))},
   rmZone(el){if(document.querySelectorAll('#zrows .z').length>1)el.closest('.z').remove()},
   resetTally(){S.site.offset=totals().aln*S.site.washers;save();closeModal();render()},
-  saveSettings(){const zs=[...document.querySelectorAll('#zrows .z')].map(r=>({name:r.querySelector('.zn').value.trim()||'Zone',color:r.querySelector('.zc').value,ranges:r.querySelector('.zr').value.trim(),dia:+r.querySelector('.zd').value,torque:r.querySelector('.zt').value.trim(),kit:r.querySelector('.zk').checked}));
+  saveSettings(){const zs=[...document.querySelectorAll('#zrows .z')].map(r=>({id:r.dataset.id||'z'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:r.querySelector('.zn').value.trim()||'Zone',color:r.querySelector('.zc').value,ranges:r.querySelector('.zr').value.trim(),dia:+r.querySelector('.zd').value,torque:r.querySelector('.zt').value.trim(),kit:r.querySelector('.zk').checked}));
     S.site.stdTq=$('#sStd').value.trim()||'3,000 N·m';S.site.alnTq=$('#sAln').value.trim()||'1,500 N·m + 240°';
     S.site.name=$('#sName').value.trim();S.site.n=Math.min(200,Math.max(8,parseInt($('#sN').value,10)||92));S.site.washers=Math.max(0,parseInt($('#sW').value,10)||0);S.site.orderAt=Math.max(0,parseInt($('#sO').value,10)||0);if(zs.length)S.zones=zs;
     const c=$('#sCode').value;if($('#sNoCode')&&$('#sNoCode').checked)S.site.code='';else if(c){S.site.code=hsh(c);try{localStorage.setItem(KEY+'.u',S.site.code)}catch(e){}}
@@ -599,12 +628,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden
     const el=e.target.closest&&e.target.closest('g[data-act]');if(el){e.preventDefault();A[el.dataset.act](el)}}});
 document.addEventListener('input',e=>{const f=e.target.dataset&&e.target.dataset.f;if(!f||ro())return;const t=cur();if(!t)return;const v=e.target.value;
   if(f==='tname')t.name=v;else if(f==='tnotes')t.notes=v;else if(f==='anotes')t.axes[ui.axis].notes=v;
-  else if(f==='btorque')setB(t,ui.axis,ui.stud,'t',v.trim());else if(f==='ttq')t.tq=v.trim();else if(f==='bnote')setB(t,ui.axis,ui.stud,'n',v);
+  else if(f==='btorque')setB(t,ui.axis,ui.stud,'t',v.trim());else if(f==='zo'){const z=e.target.dataset.z,k=e.target.dataset.k;ui.zOther[z+'.'+k]=true;setZo(t,z,k,v.trim())}else if(f==='bnote')setB(t,ui.axis,ui.stud,'n',v);
   save();lite()});
-document.addEventListener('change',e=>{let id=e.target.id;if(id==='zTq')id='tTq';if((id!=='bTq'&&id!=='tTq')||ro())return;const t=cur();if(!t)return;const v=e.target.value;
-  if(id==='bTq'){ui.btOther=v==='__o';if(v!=='__o')setB(t,ui.axis,ui.stud,'t',v);else if(PRE.indexOf((t.axes[ui.axis].b[ui.stud]||{}).t)>=0)setB(t,ui.axis,ui.stud,'t','')}
-  else{ui.ttOther=v==='__o';if(v!=='__o')t.tq=v;else if(PRE.indexOf(t.tq)>=0)t.tq=''}
-  save();renderMain();const i=$(id==='bTq'?'#bTorque':'#tTqO');if(i&&v==='__o')i.focus()});
+document.addEventListener('change',e=>{const el=e.target,k=el.dataset&&el.dataset.zsel;if(!k||ro())return;const t=cur();if(!t)return;const zid=el.dataset.z,key=zid+'.'+k,v=el.value;
+  if(v==='__o'){ui.zOther[key]=true;renderMain();const i=document.querySelector('input[data-f="zo"][data-z="'+zid+'"][data-k="'+k+'"]');if(i)i.focus();return}
+  delete ui.zOther[key];setZo(t,zid,k,v);save();renderSide();renderMain()});
+document.addEventListener('change',e=>{const id=e.target.id;if(id!=='bTq'||ro())return;const t=cur();if(!t)return;const v=e.target.value;
+  ui.btOther=v==='__o';if(v!=='__o')setB(t,ui.axis,ui.stud,'t',v);else if(PRE.indexOf((t.axes[ui.axis].b[ui.stud]||{}).t)>=0)setB(t,ui.axis,ui.stud,'t','');
+  save();renderMain();const i=$('#bTorque');if(i&&v==='__o')i.focus()});
 document.addEventListener('change',e=>{if(e.target.id!=='ptsFile')return;const file=e.target.files[0];if(!file)return;const r=new FileReader();
   r.onload=()=>{const P=parsePts(String(r.result)),named=P.filter(p=>p.name).length;
     if(!P.length){modal('<h2>No positions found in that file</h2><p>It needs one row per turbine with longitude and latitude columns, for example xlong and ylat.</p><div class="foot"><button class="btn" data-act="close">Close</button></div>');return}

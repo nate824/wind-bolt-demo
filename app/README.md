@@ -1,4 +1,4 @@
-# Stud Tracker (v0.1)
+# Stud Tracker (v0.1.2)
 
 Per-tower tracker for blade stud retrofit work, built from the 2026-11-14 call with Patrick.
 
@@ -11,7 +11,9 @@ Hosted over https it also installs as an offline app (`sw.js`, `manifest.webmani
 - Diagram follows the procedure picture: retro zone red, green zone, stud 1 found by
   counting 5 from the ramp plate edge.
 - Per stud: broken (high or low break), diameter (27/29), length, torque, note. Defaults come from the zone and tower.
-- Torque: retro zone fixed at 1,500 N·m + 240°. Each tower has a standard torque (3,000 N·m, 3,000 N·m + 180°, or typed).
+- Zones on each tower: diameter (27/29 mm), torque (1,500/3,000 N·m) and angle (none/180°/240°) are dropdowns for
+  retro, green and standard, each with Other to type a one-off value. Usual values: retro 27 mm 1,500 N·m + 240°,
+  green and standard 29 mm 3,000 N·m.
   Adding an alignment puts every stud on that axis at 1,500 N·m + 240° and draws the 49 added washers on the circle.
 - Per axis: status, notes, Add alignment (+49 extra washers to the running tally).
 - Tower notes. Washer tally with an order reminder (default 1,000).
