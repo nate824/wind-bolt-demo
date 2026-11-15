@@ -1,4 +1,4 @@
-# Stud Tracker (v1)
+# Stud Tracker (v0.1)
 
 Per-tower tracker for blade stud retrofit work, built from the 2026-11-14 call with Patrick.
 
@@ -10,10 +10,13 @@ Hosted over https it also installs as an offline app (`sw.js`, `manifest.webmani
 - Three axes per tower (A1, A2, A3), 92 studs each, one row, numbered clockwise.
 - Diagram follows the procedure picture: retro zone red, green zone, stud 1 found by
   counting 5 from the ramp plate edge.
-- Per stud: broken, diameter (27/29), length, torque, note. Defaults come from the zone and tower.
+- Per stud: broken (high or low break), diameter (27/29), length, torque, note. Defaults come from the zone and tower.
+- Torque: retro zone fixed at 1,500 N·m + 240°. Each tower has a standard torque (3,000 N·m, 3,000 N·m + 180°, or typed).
+  Adding an alignment puts every stud on that axis at 1,500 N·m + 240° and draws the 49 added washers on the circle.
 - Per axis: status, notes, Add alignment (+49 extra washers to the running tally).
 - Tower notes. Washer tally with an order reminder (default 1,000).
-- Map: load turbine positions from a CSV (longitude, latitude), then select a dot to link it to a tower.
+- Map: load turbine positions from a CSV or a one-click setup link (Settings > Map > Setup link), then select a
+  turbine to link it to a tower.
   Dots show tower status. Road background comes from OpenStreetMap when online.
 - Share: read-only snapshot link, CSV summary, backup and restore.
 - Optional edit code that locks editing in this browser.
@@ -21,7 +24,8 @@ Hosted over https it also installs as an offline app (`sw.js`, `manifest.webmani
 ## Assumptions to confirm with Patrick
 - Lower retro zone is 23 to 43. The picture labels only 43; 23 is read off the picture and
   cross-checks: 92 - 37 retro - 6 green = 49, the alignment washer count.
-- Green zone (44 to 46, 66 to 68): 29 mm and 3,000 N·m assumed. Meaning of green not stated.
+- Green zone (44 to 46, 66 to 68): 29 mm at the tower's standard torque, washers assumed to come with the kit
+  (that is what makes the alignment count 49). Confirm with Patrick.
 - "65 mm" early in the call is taken as a slip for the 610/655 length variants.
 All of these are editable under Settings.
 
