@@ -115,7 +115,7 @@ label.fl{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(-
 .diatools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:2px 6px}
 .key{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-left:auto}
 .key span{display:flex;align-items:center;gap:5px}
-.sw{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--stud-line);background:var(--stud);flex:none}
+.sw{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--stud-line);background:var(--stud);flex:none;display:inline-block}
 .sw.red{background:var(--z-red);border-color:var(--z-red)} .sw.green{background:var(--z-green);border-color:var(--z-green)}
 .sw.blue{background:var(--z-blue);border-color:var(--z-blue)} .sw.yellow{background:var(--z-yellow);border-color:var(--z-yellow)}
 .sw.brk{background:var(--broken);border-color:var(--ink)}
@@ -160,6 +160,7 @@ label.fl{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(-
 .aln.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .ztab{width:100%;border-collapse:collapse;font-size:13px}
 .ztab td{padding:4px 6px 4px 0;vertical-align:top;border-top:1px solid var(--line)}
+.ztab select{margin-top:3px;min-width:150px;padding:5px 8px}
 .bigbtn{padding:10px;font-weight:700;border-radius:8px;border:2px solid var(--broken);background:none;color:var(--broken)}
 .bigbtn.on{background:var(--broken);color:#1a1200}
 .bigbtn:disabled{cursor:default}
@@ -244,7 +245,7 @@ const DEF={v:2,site:{name:'',n:92,washers:49,orderAt:1000,offset:0,code:'',pts:[
     {name:'Green zone',color:'green',dia:29,torque:'',ranges:'44-46, 66-68',kit:true},
     {name:'Standard',color:'white',dia:29,torque:'',ranges:'',kit:false}],
   towers:[]};
-const VER='0.1', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
+const VER='0.1.1', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
 const ST=['Not started','In progress','Complete'], AX=['A1','A2','A3'], LENS=['610','655'], DIAS=[27,29];
 const COLORS=['white','red','green','blue','yellow'];
 const A0=69, COUNT=5;           // stud 1 sits about 69° clockwise from top in the procedure picture; stud 1 is the 5th from the ramp plate edge
@@ -419,7 +420,7 @@ function renderDetail(t){const ai=ui.axis,a=t.axes[ai],R=ro();
     '<div class="sec"><h4>Broken studs ('+br.length+')</h4>'+(br.length?'<div class="chips">'+br.map(n=>'<button data-act="stud" data-n="'+n+'">#'+n+brkWord(a.b[n])+' · '+esc(ZMAP[n].name)+'</button>').join('')+'</div>':'<p class="hint">None recorded.</p>')+'</div>';
   if(notes.length)h+='<div class="sec"><h4>Stud notes</h4><div class="chips">'+notes.map(n=>'<button class="n" data-act="stud" data-n="'+n+'"><b>#'+n+'</b> '+esc(a.b[n].n)+'</button>').join('')+'</div></div>';
   if(ovs.length)h+='<div class="sec"><h4>Size or torque changed</h4><div class="chips">'+ovs.map(n=>{const e=eff(t,ai,n);return '<button class="n" data-act="stud" data-n="'+n+'"><b>#'+n+'</b> '+e.dia+' mm, '+esc(e.len)+', '+esc(e.torque)+'</button>'}).join('')+'</div></div>';
-  h+='<div class="sec"><h4>Zones</h4><table class="ztab">'+S.zones.map(z=>'<tr><td><span class="sw '+(z.color==='white'?'':z.color)+'"></span></td><td><b>'+esc(z.name)+'</b><br><span class="hint">'+(z._r.length?z._r.map(r=>r[0]===r[1]?r[0]:r[0]+' to '+r[1]).join(', '):'all other studs')+' · '+z._n+' studs</span></td><td class="num">'+z.dia+' mm<br><span class="hint">'+esc(a.aln?S.site.alnTq:zoneTq(t,z))+(z.kit?'<br>washers in kit':a.aln?'<br>washers added':'')+'</span></td></tr>').join('')+'</table></div>';
+  h+='<div class="sec"><h4>Zones</h4><table class="ztab">'+S.zones.map(z=>'<tr><td><span class="sw '+(z.color==='white'?'':z.color)+'"></span></td><td><b>'+esc(z.name)+'</b><br><span class="hint">'+(z._r.length?z._r.map(r=>r[0]===r[1]?r[0]:r[0]+' to '+r[1]).join(', '):'all other studs')+' · '+z._n+' studs</span></td><td class="num">'+z.dia+' mm<br>'+(!z.torque&&!z.kit&&!a.aln&&!R?tqSelect('zTq',t.tq===S.site.stdTq?'':t.tq,S.site.stdTq,ui.ttOther,R,''):'<span class="hint">'+esc(a.aln?S.site.alnTq:zoneTq(t,z))+'</span>')+'<span class="hint">'+(z.kit?'<br>washers in kit':a.aln?'<br>washers added':'')+'</span></td></tr>').join('')+'</table>'+(a.aln||R?'':'<p class="hint">Standard torque applies to this whole tower. Pick 3,000 N·m + 180° here or at the top of the page.</p>')+'</div>';
   return h+'</div>'}
 function renderTower(t){const s=towerSt(t),R=ro();
   let h='<div class="card thead"><input class="tname" type="text" id="tName" data-f="tname" value="'+esc(t.name)+'" placeholder="Tower name" aria-label="Tower name"'+dis()+'>'+
@@ -600,7 +601,7 @@ document.addEventListener('input',e=>{const f=e.target.dataset&&e.target.dataset
   if(f==='tname')t.name=v;else if(f==='tnotes')t.notes=v;else if(f==='anotes')t.axes[ui.axis].notes=v;
   else if(f==='btorque')setB(t,ui.axis,ui.stud,'t',v.trim());else if(f==='ttq')t.tq=v.trim();else if(f==='bnote')setB(t,ui.axis,ui.stud,'n',v);
   save();lite()});
-document.addEventListener('change',e=>{const id=e.target.id;if((id!=='bTq'&&id!=='tTq')||ro())return;const t=cur();if(!t)return;const v=e.target.value;
+document.addEventListener('change',e=>{let id=e.target.id;if(id==='zTq')id='tTq';if((id!=='bTq'&&id!=='tTq')||ro())return;const t=cur();if(!t)return;const v=e.target.value;
   if(id==='bTq'){ui.btOther=v==='__o';if(v!=='__o')setB(t,ui.axis,ui.stud,'t',v);else if(PRE.indexOf((t.axes[ui.axis].b[ui.stud]||{}).t)>=0)setB(t,ui.axis,ui.stud,'t','')}
   else{ui.ttOther=v==='__o';if(v!=='__o')t.tq=v;else if(PRE.indexOf(t.tq)>=0)t.tq=''}
   save();renderMain();const i=$(id==='bTq'?'#bTorque':'#tTqO');if(i&&v==='__o')i.focus()});
