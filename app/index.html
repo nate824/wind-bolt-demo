@@ -251,7 +251,7 @@ const DEF={v:3,site:{name:'',n:92,washers:49,orderAt:1000,offset:0,code:'',pts:[
     {id:'green',name:'Green zone',color:'green',dia:29,torque:'',ranges:'44-46, 66-68',kit:true},
     {id:'std',name:'Standard',color:'white',dia:29,torque:'',ranges:'',kit:false}],
   towers:[]};
-const VER='0.1.5', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
+const VER='0.1.6', PRE=['3,000 N·m','3,000 N·m + 180°','1,500 N·m + 240°'];
 const ST=['Not started','In progress','Complete'], AX=['A1','A2','A3'], LENS=['610','655'], DIAS=[27,29];
 const COLORS=['white','red','green','blue','yellow'];
 const A0=69, COUNT=5;           // stud 1 sits about 69° clockwise from top in the procedure picture; stud 1 is the 5th from the ramp plate edge
@@ -551,20 +551,15 @@ function openSettings(){const T=totals();modal('<h2>Settings</h2>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Edit code</h4><p class="hint">'+(S.site.code?'An edit code is set. Type a new one to change it, or tick the box to remove it.':'Optional. With a code set, this browser has to be unlocked before anything can be changed.')+'</p>'+
   '<div class="form"><label class="fl">New edit code<input type="password" id="sCode" autocomplete="new-password"></label>'+(S.site.code?'<label class="row" style="font-size:14px"><input type="checkbox" id="sNoCode" style="width:auto"> Remove the edit code</label>':'')+'</div></div>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Map</h4><div class="row"><span>'+(S.site.pts.length?S.site.pts.length+' turbine positions loaded':'No turbine positions loaded')+'</span><label class="btn" style="cursor:pointer">'+(S.site.pts.length?'Replace':'Load')+' positions (CSV)<input type="file" id="ptsFile" accept=".csv,text/csv,text/plain" hidden></label>'+(S.site.pts.length?'<button class="btn" data-act="setupLink">Setup link</button><button class="btn danger" data-act="rmPts">Remove map</button>':'')+'</div></div>'+
+  '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Backup</h4><p class="hint">Your data is stored in this browser on this computer. Download a backup now and then.</p><div class="row"><button class="btn" data-act="backup">Download backup</button><label class="btn" style="cursor:pointer">Restore backup<input type="file" id="restore" accept=".json,application/json" hidden></label></div></div>'+
   '<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Start over</h4><div class="row"><button class="btn danger" data-act="wipe">Delete all towers</button><span class="hint">Keeps the site name, zones and edit code.</span></div></div>'+
   '<div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="saveSettings">Save settings</button></div>')}
-const FILES=()=>'<div class="sec"><h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Files</h4><div class="row"><button class="btn" data-act="csv">Download CSV summary</button><button class="btn" data-act="backup">Download backup</button>'+(ro()?'':'<label class="btn" style="cursor:pointer">Restore backup<input type="file" id="restore" accept=".json,application/json" hidden></label>')+'</div>'+
-  '<p class="hint">Data is stored in this browser on this computer. Download a backup now and then.</p></div><div class="foot"><button class="btn" data-act="close">Close</button></div>';
-const H4=t=>'<h4 style="margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">'+t+'</h4>';
 async function openShare(){const t=cur();
-  if(!t){modal('<h2>Share</h2><div class="sec">'+H4('Read-only link')+'<p class="hint">Open the tower you want to share, pick the axis, then press Share. The link opens straight on that tower and axis.</p></div>'+FILES());return}
-  modal('<h2>Share</h2><p>Building the link…</p>');
-  const link=location.href.split('#')[0]+'#s='+await pack(compact(shareData(t)));A._link=link;A._label=tname(t)+' '+AX[ui.axis]+' stud report, '+today();
-  modal('<h2>Share '+esc(tname(t))+'</h2><div class="sec">'+H4('Read-only link')+
-    '<p class="hint">Opens straight on '+esc(tname(t))+', '+AX[ui.axis]+'. They can switch between A1, A2 and A3 and select studs, but cannot change anything. It is a snapshot: send a fresh link after you update.</p>'+
-    '<div class="row"><button class="btn primary" data-act="copyNamed">Copy as named link</button><button class="btn" data-act="copyLink">Copy plain link</button><span class="hint" id="copied"></span></div>'+
-    '<p class="hint">A named link pastes into an email or Teams message as <a href="'+esc(link)+'">'+esc(A._label)+'</a>. Text messages show the plain link.</p>'+
-    '<textarea id="shareLink" rows="2" readonly>'+esc(link)+'</textarea></div>'+FILES())}
+  if(!t){modal('<h2>Share</h2><p>Open the tower you want to share, pick the axis, then press Share.</p><div class="foot"><button class="btn" data-act="close">Close</button></div>');return}
+  modal('<h2>Share '+esc(tname(t))+', '+AX[ui.axis]+'</h2><p>Getting the link ready…</p>');
+  A._link=location.href.split('#')[0]+'#s='+await pack(compact(shareData(t)));A._label=tname(t)+' '+AX[ui.axis]+' stud report, '+today();
+  modal('<h2>Share '+esc(tname(t))+', '+AX[ui.axis]+'</h2><p>Read-only. It opens on this tower and shows it as it is right now, so send a new link after you update.</p>'+
+    '<div class="row"><button class="btn primary" data-act="copyNamed" autofocus>Copy link</button><span class="hint" id="copied"></span></div><div class="foot"><button class="btn" data-act="close">Close</button></div>')}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function csv(){const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const head=['Tower','Stud length','Zone values','Status','Tower notes'];AX.forEach(a=>head.push(a+' status',a+' aligned',a+' broken studs',a+' notes'));head.push('Extra washers');
@@ -635,10 +630,11 @@ const A={
   doUnlock(){if(hsh($('#uCode').value)===S.site.code){try{localStorage.setItem(KEY+'.u',S.site.code)}catch(e){}closeModal();render()}else $('#uErr').textContent='That code does not match.'},
   share(){openShare()},
   copyNamed(){const ok=t=>{$('#copied').textContent=t},html='<a href="'+esc(A._link)+'">'+esc(A._label)+'</a>';
-    try{if(navigator.clipboard&&window.ClipboardItem){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([A._link],{type:'text/plain'})})]).then(()=>ok('Copied. Paste it into your email.'),()=>A.copyLink());return}}catch(e){}
+    try{if(navigator.clipboard&&window.ClipboardItem){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([A._link],{type:'text/plain'})})]).then(()=>ok('Copied'),()=>A.copyLink());return}}catch(e){}
     A.copyLink()},
-  copyLink(){const ta=$('#shareLink');ta.select();const ok=()=>{$('#copied').textContent='Copied'};
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(ta.value).then(ok,()=>{try{document.execCommand('copy');ok()}catch(e){}});else{try{document.execCommand('copy');ok()}catch(e){}}},
+  copyLink(){const ta=$('#shareLink'),v=ta?ta.value:A._link,ok=()=>{const c=$('#copied');if(c)c.textContent='Copied'};
+    const fb=()=>{const x=ta||document.createElement('textarea');if(!ta){x.value=v;x.style.position='fixed';x.style.opacity='0';document.body.appendChild(x)}x.select();try{document.execCommand('copy');ok()}catch(e){}if(!ta)x.remove()};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(ok,fb);else fb()},
   csv(){csv()},
   backup(){download((S.site.name||'stud-tracker').replace(/[^\w-]+/g,'_')+'_backup_'+today()+'.json',JSON.stringify(S,strip,1),'application/json')},
   applyRestore(){S=migrate(A._restore);A._restore=null;ui.tower=null;save();closeModal();render()},
